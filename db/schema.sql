@@ -1,0 +1,2 @@
+-- Kapāpala Access Portal schema placeholder
+-- Tables planned: users, access_ids, id_documents, gates, gate_combinations, access_requests, sms_logs, admin_actions
