@@ -1,4 +1,5 @@
 import StatusBadge from "../ui/StatusBadge";
+import AuthStatus from "../auth/AuthStatus";
 
 export default function TopBar() {
   return (
@@ -10,7 +11,7 @@ export default function TopBar() {
 
       <div className="topbar-right">
         <StatusBadge label="Public Access Open" tone="green" />
-        <div className="user-chip">👤 Guest</div>
+        <AuthStatus />
       </div>
     </header>
   );

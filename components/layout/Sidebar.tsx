@@ -14,6 +14,23 @@ const infoLinks = [
   { href: "/dashboard", label: "Rules & Safety", icon: "📖" },
 ];
 
+const adminLinks = [
+  { href: "/admin", label: "Admin Dashboard", icon: "📊" },
+  { href: "/admin/reviews", label: "Access Account Request Queue", icon: "📥" },
+  { href: "/admin/accounts", label: "Access Accounts", icon: "👤" },
+  { href: "/admin/requests", label: "Daily Access Request Queue", icon: "🚙" },
+  { href: "/admin/gates", label: "Gate Combination Manager", icon: "🔐" },
+  { href: "/admin/workflows", label: "Workflow Engine", icon: "🔁" },
+  { href: "/admin/business-rules", label: "Business Rules", icon: "📋" },
+  { href: "/admin/communications", label: "Communications Center", icon: "📱" },
+  { href: "/admin/notifications", label: "Notifications", icon: "🔔" },
+  { href: "/admin/configuration", label: "Configuration", icon: "⚙️" },
+  { href: "/admin/reports", label: "Reports", icon: "📈" },
+  { href: "/admin/system-log", label: "System Log", icon: "📜" },
+  { href: "/admin/schema-preview", label: "Backend Schema", icon: "🧱" },
+  { href: "/admin/auth", label: "Auth & Roles", icon: "🔑" },
+];
+
 export default function Sidebar() {
   return (
     <aside className="sidebar">
@@ -48,8 +65,12 @@ export default function Sidebar() {
 
         <div className="nav-section">
           <div className="nav-heading">Administration</div>
-          <Link href="/admin"><span>⚙️</span>Admin Portal</Link>
-          <Link href="/admin/gates"><span>🔐</span>Gate Combinations</Link>
+          {adminLinks.map((link) => (
+            <Link key={link.label} href={link.href}>
+              <span>{link.icon}</span>
+              {link.label}
+            </Link>
+          ))}
         </div>
       </nav>
 

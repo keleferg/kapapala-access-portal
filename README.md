@@ -1,35 +1,30 @@
-# Kapāpala Access Portal — Version 1.0 UI Framework
+# Kapāpala Access Portal v2.4 — Production Database Foundation
 
-This is a clean Next.js UI foundation for the Kapāpala Access Portal.
+This package focuses on getting real data into Supabase safely.
 
-## Pages included
-
-- Public landing page: `/`
-- User dashboard: `/dashboard`
-- Access account application: `/apply`
-- Daily access request: `/request-access`
-- Admin dashboard: `/admin`
-- Gate combinations: `/admin/gates`
-
-## Install and run
-
-```bash
-npm install
-npm run dev
-```
-
-Open:
+## Primary file to run
 
 ```text
-http://localhost:3000
+supabase/RUN_THIS_IN_SQL_EDITOR.sql
 ```
 
-## Recommended install into your existing project
+Paste that file into the Supabase SQL Editor and run it.
 
-1. Stop your dev server with `Ctrl + C`.
-2. Back up your current project folder.
-3. Copy the `app`, `components`, `lib`, `db`, `docs`, `public`, `package.json`, `tsconfig.json`, `next.config.js`, `.env.example`, and `README.md` files from this package into your project.
-4. Run `npm install`.
-5. Run `npm run dev`.
+## Fixes included
 
-This version intentionally removes the old `Header.tsx` page dependency and uses `components/layout/AppShell.tsx` instead.
+- Removes unsupported `create policy if not exists` syntax.
+- Uses `drop policy if exists` before every policy.
+- Safe to run after a partial failed v2.0 schema attempt.
+- Adds lookup tables for purposes, account types, and organizations.
+- Adds gates, combinations, daily requests, vehicles, documents, timeline, SMS logs, audit log, business rules, and notification templates.
+- Creates the private `kapapala-documents` Supabase Storage bucket.
+
+## Next step after running SQL
+
+Visit:
+
+```text
+http://localhost:3000/api/health
+```
+
+Then confirm the `gates` table shows Wood Valley, Honanui, and ʻĀinapō.

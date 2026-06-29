@@ -1,8 +1,5 @@
 import AppShell from "../../../components/layout/AppShell";
-import Card from "../../../components/ui/Card";
-import StatusBadge from "../../../components/ui/StatusBadge";
-
-const gates = ["Wood Valley", "Honanui", "ʻĀinapō"];
+import GateCombinationManager from "../../../components/admin/GateCombinationManager";
 
 export default function GatesPage() {
   return (
@@ -10,22 +7,12 @@ export default function GatesPage() {
       <div className="page-heading">
         <p>Administration</p>
         <h2>Gate Combinations</h2>
-        <span>Manage gate status and daily combinations.</span>
+        <span>
+          Manage daily combinations, gate status, road conditions, and gate-specific notices.
+        </span>
       </div>
 
-      <div className="card-grid three">
-        {gates.map((gate) => (
-          <Card key={gate} title={gate}>
-            <StatusBadge label={gate === "ʻĀinapō" ? "Restricted" : "Open"} tone={gate === "ʻĀinapō" ? "yellow" : "green"} />
-            <form className="single-column-form">
-              <label>Date<input type="date" /></label>
-              <label>Combination<input placeholder="Enter combination" /></label>
-              <label>Notes<input placeholder="Optional gate notice" /></label>
-            </form>
-            <button className="button primary form-button">Save Gate Info</button>
-          </Card>
-        ))}
-      </div>
+      <GateCombinationManager />
     </AppShell>
   );
 }
