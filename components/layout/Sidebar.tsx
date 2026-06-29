@@ -17,7 +17,7 @@ const infoLinks = [
 const adminLinks = [
   { href: "/admin", label: "Admin Dashboard", icon: "📊" },
   { href: "/admin/reviews", label: "Access Account Request Queue", icon: "📥" },
-  { href: "/admin/accounts", label: "Access Accounts", icon: "👤" },
+  { href: "/admin/access-accounts", label: "Access Accounts", icon: "👤" },
   { href: "/admin/requests", label: "Daily Access Request Queue", icon: "🚙" },
   { href: "/admin/gates", label: "Gate Combination Manager", icon: "🔐" },
   { href: "/admin/workflows", label: "Workflow Engine", icon: "🔁" },

@@ -98,7 +98,7 @@ export default function PendingReviewQueue() {
 
                   <a
                     className="button secondary"
-                    href={`/admin/accounts/${account.id}`}
+                    href={`/admin/access-accounts/${account.id}`}
                   >
                     Review
                   </a>
