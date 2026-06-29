@@ -13,8 +13,49 @@ const steps = [
   "Review",
 ];
 
+type FormState = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  idType: string;
+  vehicleDescription: string;
+  licensePlate: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  primaryPurpose: string;
+  defaultGate: "Wood Valley" | "Honanui" | "ʻĀinapō";
+  rulesAccepted: boolean;
+};
+
+const initialForm: FormState = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  phone: "",
+  idType: "",
+  vehicleDescription: "",
+  licensePlate: "",
+  emergencyContactName: "",
+  emergencyContactPhone: "",
+  primaryPurpose: "",
+  defaultGate: "Wood Valley",
+  rulesAccepted: false,
+};
+
 export default function AccessAccountWizard() {
   const [step, setStep] = useState(0);
+  const [form, setForm] = useState<FormState>(initialForm);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState("");
+  const [submitError, setSubmitError] = useState("");
+
+  function updateField<K extends keyof FormState>(field: K, value: FormState[K]) {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
 
   function nextStep() {
     setStep((current) => Math.min(current + 1, steps.length - 1));
@@ -22,6 +63,79 @@ export default function AccessAccountWizard() {
 
   function previousStep() {
     setStep((current) => Math.max(current - 1, 0));
+  }
+
+  async function submitApplication() {
+    setSubmitMessage("");
+    setSubmitError("");
+
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      setSubmitError("First name and last name are required.");
+      setStep(0);
+      return;
+    }
+
+    if (!form.email.trim()) {
+      setSubmitError("Email is required.");
+      setStep(0);
+      return;
+    }
+
+    if (!form.rulesAccepted) {
+      setSubmitError("Please accept the access rules before submitting.");
+      setStep(4);
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/access-accounts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          firstName: form.firstName,
+          lastName: form.lastName,
+          email: form.email,
+          phone: form.phone,
+          organization: form.primaryPurpose,
+          defaultGate: form.defaultGate,
+          emergencyContactName: form.emergencyContactName,
+          emergencyContactPhone: form.emergencyContactPhone,
+          vehicles: form.licensePlate
+            ? [
+                {
+                  label: form.vehicleDescription || "Vehicle",
+                  licensePlate: form.licensePlate,
+                  state: "HI",
+                  make: "",
+                  model: "",
+                  color: "",
+                  isDefault: true,
+                },
+              ]
+            : [],
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Unable to submit application.");
+      }
+
+      setSubmitMessage(
+        "Application submitted successfully. Your request is now pending admin review."
+      );
+      setForm(initialForm);
+      setStep(5);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Unknown error.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -45,19 +159,26 @@ export default function AccessAccountWizard() {
       </Card>
 
       <Card title={steps[step]}>
-        {step === 0 && <AboutYouStep />}
-        {step === 1 && <IdentificationStep />}
-        {step === 2 && <VehiclesStep />}
-        {step === 3 && <EmergencyContactStep />}
-        {step === 4 && <RulesStep />}
-        {step === 5 && <ReviewStep />}
+        {submitError && <div className="error-callout">{submitError}</div>}
+        {submitMessage && <div className="success-callout">{submitMessage}</div>}
+
+        {step === 0 && <AboutYouStep form={form} updateField={updateField} />}
+        {step === 1 && (
+          <IdentificationStep form={form} updateField={updateField} />
+        )}
+        {step === 2 && <VehiclesStep form={form} updateField={updateField} />}
+        {step === 3 && (
+          <EmergencyContactStep form={form} updateField={updateField} />
+        )}
+        {step === 4 && <RulesStep form={form} updateField={updateField} />}
+        {step === 5 && <ReviewStep form={form} />}
 
         <div className="wizard-actions">
           <button
             className="button secondary"
             onClick={previousStep}
             type="button"
-            disabled={step === 0}
+            disabled={step === 0 || isSubmitting}
           >
             Back
           </button>
@@ -67,8 +188,13 @@ export default function AccessAccountWizard() {
               Continue
             </button>
           ) : (
-            <button className="button primary" type="button">
-              Submit Application
+            <button
+              className="button primary"
+              type="button"
+              onClick={submitApplication}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Submitting..." : "Submit Application"}
             </button>
           )}
         </div>
@@ -77,7 +203,13 @@ export default function AccessAccountWizard() {
   );
 }
 
-function AboutYouStep() {
+function AboutYouStep({
+  form,
+  updateField,
+}: {
+  form: FormState;
+  updateField: <K extends keyof FormState>(field: K, value: FormState[K]) => void;
+}) {
   return (
     <div className="mobile-form-stack">
       <p className="muted-text">
@@ -87,42 +219,68 @@ function AboutYouStep() {
       <div className="form-grid">
         <label>
           First Name
-          <input placeholder="First name" />
+          <input
+            placeholder="First name"
+            value={form.firstName}
+            onChange={(event) => updateField("firstName", event.target.value)}
+          />
         </label>
         <label>
           Last Name
-          <input placeholder="Last name" />
+          <input
+            placeholder="Last name"
+            value={form.lastName}
+            onChange={(event) => updateField("lastName", event.target.value)}
+          />
         </label>
         <label>
           Email
-          <input type="email" placeholder="name@example.com" />
+          <input
+            type="email"
+            placeholder="name@example.com"
+            value={form.email}
+            onChange={(event) => updateField("email", event.target.value)}
+          />
         </label>
         <label>
           Mobile Phone
-          <input placeholder="(808) 555-1234" />
+          <input
+            placeholder="(808) 555-1234"
+            value={form.phone}
+            onChange={(event) => updateField("phone", event.target.value)}
+          />
         </label>
       </div>
     </div>
   );
 }
 
-function IdentificationStep() {
+function IdentificationStep({
+  form,
+  updateField,
+}: {
+  form: FormState;
+  updateField: <K extends keyof FormState>(field: K, value: FormState[K]) => void;
+}) {
   return (
     <div className="mobile-form-stack">
       <div className="info-callout">
         <strong>Identification Review</strong>
         <p>
-          Upload a clear photo of your government-issued identification. An
-          administrator will review it before issuing an Access ID.
+          Upload support will be wired next. For now, the application stores the
+          request and ID type for admin review.
         </p>
       </div>
       <label>
         Government ID Upload
-        <input type="file" />
+        <input type="file" disabled />
       </label>
       <label>
         ID Type
-        <select defaultValue="">
+        <select
+          value={form.idType}
+          onChange={(event) => updateField("idType", event.target.value)}
+        >
           <option value="" disabled>
             Select ID type
           </option>
@@ -136,7 +294,13 @@ function IdentificationStep() {
   );
 }
 
-function VehiclesStep() {
+function VehiclesStep({
+  form,
+  updateField,
+}: {
+  form: FormState;
+  updateField: <K extends keyof FormState>(field: K, value: FormState[K]) => void;
+}) {
   return (
     <div className="mobile-form-stack">
       <p className="muted-text">
@@ -144,44 +308,74 @@ function VehiclesStep() {
       </p>
       <div className="saved-item-list">
         <div>
-          <strong>White Toyota Tacoma</strong>
-          <span>Hawaii ABC 123</span>
-          <StatusBadge label="Primary" tone="green" />
+          <strong>{form.vehicleDescription || "Vehicle not entered"}</strong>
+          <span>{form.licensePlate || "License plate not entered"}</span>
+          {form.licensePlate && <StatusBadge label="Primary" tone="green" />}
         </div>
       </div>
       <div className="form-grid">
         <label>
           Vehicle Description
-          <input placeholder="White Toyota Tacoma" />
+          <input
+            placeholder="White Toyota Tacoma"
+            value={form.vehicleDescription}
+            onChange={(event) =>
+              updateField("vehicleDescription", event.target.value)
+            }
+          />
         </label>
         <label>
           License Plate
-          <input placeholder="ABC 123" />
+          <input
+            placeholder="ABC 123"
+            value={form.licensePlate}
+            onChange={(event) =>
+              updateField("licensePlate", event.target.value.toUpperCase())
+            }
+          />
         </label>
       </div>
-      <button className="button secondary full-width" type="button">
-        + Add Another Vehicle
-      </button>
     </div>
   );
 }
 
-function EmergencyContactStep() {
+function EmergencyContactStep({
+  form,
+  updateField,
+}: {
+  form: FormState;
+  updateField: <K extends keyof FormState>(field: K, value: FormState[K]) => void;
+}) {
   return (
     <div className="mobile-form-stack">
       <div className="form-grid">
         <label>
           Emergency Contact Name
-          <input placeholder="Contact name" />
+          <input
+            placeholder="Contact name"
+            value={form.emergencyContactName}
+            onChange={(event) =>
+              updateField("emergencyContactName", event.target.value)
+            }
+          />
         </label>
         <label>
           Emergency Contact Phone
-          <input placeholder="(808) 555-1234" />
+          <input
+            placeholder="(808) 555-1234"
+            value={form.emergencyContactPhone}
+            onChange={(event) =>
+              updateField("emergencyContactPhone", event.target.value)
+            }
+          />
         </label>
       </div>
       <label>
         Primary Purpose of Access
-        <select defaultValue="">
+        <select
+          value={form.primaryPurpose}
+          onChange={(event) => updateField("primaryPurpose", event.target.value)}
+        >
           <option value="" disabled>
             Select purpose
           </option>
@@ -194,36 +388,71 @@ function EmergencyContactStep() {
           <option>Other</option>
         </select>
       </label>
+      <label>
+        Preferred Gate
+        <select
+          value={form.defaultGate}
+          onChange={(event) =>
+            updateField(
+              "defaultGate",
+              event.target.value as "Wood Valley" | "Honanui" | "ʻĀinapō"
+            )
+          }
+        >
+          <option>Wood Valley</option>
+          <option>Honanui</option>
+          <option>ʻĀinapō</option>
+        </select>
+      </label>
     </div>
   );
 }
 
-function RulesStep() {
+function RulesStep({
+  form,
+  updateField,
+}: {
+  form: FormState;
+  updateField: <K extends keyof FormState>(field: K, value: FormState[K]) => void;
+}) {
   return (
     <div className="mobile-form-stack">
       <div className="rule-list">
         <label>
-          <input type="checkbox" />
+          <input type="checkbox" checked readOnly />
           <span>I agree to close and secure all gates after passing through.</span>
         </label>
         <label>
-          <input type="checkbox" />
+          <input type="checkbox" checked readOnly />
           <span>I agree to stay on approved roads and access areas.</span>
         </label>
         <label>
-          <input type="checkbox" />
+          <input type="checkbox" checked readOnly />
           <span>I agree not to share gate combinations with others.</span>
         </label>
         <label>
-          <input type="checkbox" />
+          <input type="checkbox" checked readOnly />
           <span>I agree to pack out everything I bring in.</span>
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={form.rulesAccepted}
+            onChange={(event) =>
+              updateField("rulesAccepted", event.target.checked)
+            }
+          />
+          <span>
+            I certify that the information provided is accurate and I agree to
+            the Kapāpala Ranch public access rules.
+          </span>
         </label>
       </div>
     </div>
   );
 }
 
-function ReviewStep() {
+function ReviewStep({ form }: { form: FormState }) {
   return (
     <div className="mobile-form-stack">
       <div className="approval-preview">
@@ -239,12 +468,26 @@ function ReviewStep() {
       </div>
       <div className="request-summary-grid">
         <div className="summary-item">
+          <span>Name</span>
+          <strong>
+            {form.firstName || "—"} {form.lastName || ""}
+          </strong>
+        </div>
+        <div className="summary-item">
+          <span>Email</span>
+          <strong>{form.email || "—"}</strong>
+        </div>
+        <div className="summary-item">
           <span>Status</span>
           <strong>Pending Admin Review</strong>
         </div>
         <div className="summary-item">
           <span>Saved Vehicle</span>
-          <strong>White Toyota Tacoma</strong>
+          <strong>{form.vehicleDescription || "—"}</strong>
+        </div>
+        <div className="summary-item">
+          <span>Preferred Gate</span>
+          <strong>{form.defaultGate}</strong>
         </div>
         <div className="summary-item">
           <span>Next Step</span>
