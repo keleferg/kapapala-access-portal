@@ -1,7 +1,7 @@
 [build]
-  command = "corepack prepare npm@10.8.1 --activate && npm install && npm run build"
+  command = "npm install && npm run build"
   publish = ".next"
 
 [build.environment]
   NODE_VERSION = "20"
-  NPM_VERSION = "10.8.1"
+  NPM_VERSION = "10"
