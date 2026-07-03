@@ -6,7 +6,7 @@ export default function TopBar() {
     <header className="topbar">
       <div>
         <h1>Kapāpala Access Portal</h1>
-        <p>Public Access Management System</p>
+        <p>Kapāpala Forest Reserve Access Management System</p>
       </div>
 
       <div className="topbar-right">

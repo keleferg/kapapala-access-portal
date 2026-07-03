@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Kapāpala Access Portal",
-  description: "Public Access Management System for Kapāpala Ranch",
+  title: "Kapāpala Forest Reserve Access Portal",
+  description: "Kapapala Forest Reserve Access Management System for Kapāpala Ranch",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

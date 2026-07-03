@@ -1,10 +1,10 @@
 import AppShell from "../../components/layout/AppShell";
-import MobileAccessRequest from "../../components/request/MobileAccessRequest";
+import DailyAccessRequestWizard from "../../components/access/DailyAccessRequestWizard";
 
 export default function RequestAccessPage() {
   return (
     <AppShell>
-      <MobileAccessRequest />
+      <DailyAccessRequestWizard />
     </AppShell>
   );
 }

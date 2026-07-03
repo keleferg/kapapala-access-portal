@@ -203,6 +203,7 @@ export async function GET() {
         emergency_contact_phone,
         created_at,
         updated_at,
+        internal_notes,
         applicant:profiles!access_accounts_profile_id_fkey (
           first_name,
           last_name,

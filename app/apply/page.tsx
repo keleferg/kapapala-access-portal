@@ -1,19 +1,16 @@
-import AppShell from "../../components/layout/AppShell";
-import AccessAccountWizard from "../../components/account/AccessAccountWizard";
+import Link from "next/link";
+import MyAccessAccountPage from "../../components/account/MyAccessAccountPage";
 
 export default function ApplyPage() {
   return (
-    <AppShell>
-      <div className="page-heading">
-        <p>Access Account</p>
-        <h2>Apply for an Access Account</h2>
-        <span>
-          Create your Kapāpala Ranch access account, upload your ID, save
-          vehicles, and agree to the public access rules.
-        </span>
-      </div>
+    <main className="portal-page-background">
+      <section className="public-application-card access-account-page-card">
+        <Link href="/dashboard" className="button secondary">
+          Back to Dashboard
+        </Link>
 
-      <AccessAccountWizard />
-    </AppShell>
+        <MyAccessAccountPage />
+      </section>
+    </main>
   );
 }
