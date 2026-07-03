@@ -2,10 +2,6 @@
   command = "corepack prepare npm@10.8.1 --activate && npm install && npm run build"
   publish = ".next"
 
-[build]
- command = "npm run build && rm -rf .next/cache"
- publish = "out"
-
 [build.environment]
   NODE_VERSION = "20"
   NPM_VERSION = "10.8.1"
