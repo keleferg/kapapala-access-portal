@@ -1,3 +1,4 @@
+cat > netlify.toml <<'EOF'
 [build]
   command = "npm install --include=dev --no-audit --no-fund && npm run build"
   publish = ".next"
@@ -5,3 +6,4 @@
 [build.environment]
   NODE_VERSION = "20"
   NPM_FLAGS = "--include=dev"
+EOF
