@@ -1,7 +1,8 @@
 [build]
-  command = "npm ci --include=dev --no-audit --no-fund && npm run build"
+  command = "npm run build"
   publish = ".next"
 
 [build.environment]
-  NODE_VERSION = "20"
-  NPM_VERSION = "10.8.1"
+  NODE_VERSION = "20.19.0"
+  NPM_VERSION = "10.8.0"
+  NPM_FLAGS = "--include=dev --no-audit --no-fund"
