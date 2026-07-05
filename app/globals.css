@@ -2417,3 +2417,14 @@ input, select { border: 1px solid var(--border); border-radius: 12px; padding: 1
 .portal-page-background .card {
   margin-bottom: 0;
 }
+
+.wizard-step.complete {
+  background: #dcfce7;
+  border-color: #16a34a;
+  color: #166534;
+}
+
+.wizard-step.complete span {
+  background: #16a34a;
+  color: white;
+}
