@@ -1,6 +1,6 @@
 [build]
-  command = "npm install --include=dev --no-audit --no-fund && npm run build"
+  command = "npm ci --include=dev --no-audit --no-fund && npm run build"
   publish = ".next"
 
 [build.environment]
-  NODE_VERSION = "22"
+  NODE_VERSION = "22.11.0"
