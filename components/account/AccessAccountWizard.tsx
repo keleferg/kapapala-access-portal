@@ -273,7 +273,7 @@ function IdentificationStep({
       </div>
       <label>
         Government ID Upload
-        <input type="file" disabled />
+        <input type="file" accept="image/*,.pdf" />
       </label>
       <label>
         ID Type
