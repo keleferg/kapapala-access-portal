@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Card from "../ui/Card";
 import StatusBadge from "../ui/StatusBadge";
 import { useAccessAccounts } from "../../lib/hooks/useAccessAccounts";
 import { useAccountTimeline } from "../../lib/hooks/useAccountTimeline";
+import { getSupabaseClient } from "../../lib/supabaseClient";
 import VehicleManager from "./account/VehicleManager";
 import DocumentManager from "./account/DocumentManager";
 
 function tone(status: string): "green" | "yellow" | "red" {
   if (status === "active") return "green";
-  if (status === "approved") return "green";
   if (status === "pending") return "yellow";
   return "red";
 }
@@ -43,7 +44,10 @@ export default function AccessAccountProfile({
 }: {
   accountId: string;
 }) {
+  const router = useRouter();
+
   const { accounts, loading, error, refresh } = useAccessAccounts();
+
   const {
     events,
     loading: timelineLoading,
@@ -61,6 +65,8 @@ export default function AccessAccountProfile({
   const [activatingAccount, setActivatingAccount] = useState(false);
   const [suspendingAccount, setSuspendingAccount] = useState(false);
   const [renewingAccount, setRenewingAccount] = useState(false);
+  const [revokingAccount, setRevokingAccount] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const [editForm, setEditForm] = useState<EditProfileForm>({
     firstName: "",
@@ -76,34 +82,24 @@ export default function AccessAccountProfile({
   });
 
   useEffect(() => {
-    if (account) {
-      setNotes(account.internal_notes || "");
+    if (!account) return;
 
-      setEditForm({
-        firstName:
-          account.applicant?.first_name ||
-          account.applicant_first_name ||
-          "",
-        lastName:
-          account.applicant?.last_name ||
-          account.applicant_last_name ||
-          "",
-        email:
-          account.applicant?.email ||
-          account.applicant_email ||
-          "",
-        phone:
-          account.applicant?.phone ||
-          account.applicant_phone ||
-          "",
-        accessId: account.access_id || "",
-        status: account.status || "pending",
-        defaultGate: account.default_gate || "",
-        organization: account.organization || "",
-        emergencyContactName: account.emergency_contact_name || "",
-        emergencyContactPhone: account.emergency_contact_phone || "",
-      });
-    }
+    setNotes(account.internal_notes || "");
+
+    setEditForm({
+      firstName:
+        account.applicant?.first_name || account.applicant_first_name || "",
+      lastName:
+        account.applicant?.last_name || account.applicant_last_name || "",
+      email: account.applicant?.email || account.applicant_email || "",
+      phone: account.applicant?.phone || account.applicant_phone || "",
+      accessId: account.access_id || "",
+      status: account.status || "pending",
+      defaultGate: account.default_gate || "",
+      organization: account.organization || "",
+      emergencyContactName: account.emergency_contact_name || "",
+      emergencyContactPhone: account.emergency_contact_phone || "",
+    });
   }, [account]);
 
   function updateEditForm(field: keyof EditProfileForm, value: string) {
@@ -118,21 +114,11 @@ export default function AccessAccountProfile({
 
     setEditForm({
       firstName:
-        account.applicant?.first_name ||
-        account.applicant_first_name ||
-        "",
+        account.applicant?.first_name || account.applicant_first_name || "",
       lastName:
-        account.applicant?.last_name ||
-        account.applicant_last_name ||
-        "",
-      email:
-        account.applicant?.email ||
-        account.applicant_email ||
-        "",
-      phone:
-        account.applicant?.phone ||
-        account.applicant_phone ||
-        "",
+        account.applicant?.last_name || account.applicant_last_name || "",
+      email: account.applicant?.email || account.applicant_email || "",
+      phone: account.applicant?.phone || account.applicant_phone || "",
       accessId: account.access_id || "",
       status: account.status || "pending",
       defaultGate: account.default_gate || "",
@@ -305,6 +291,126 @@ export default function AccessAccountProfile({
     }
   }
 
+  async function revokeAccount() {
+    if (!account) return;
+
+    const accessId = account.access_id || "Pending";
+    const firstName =
+      account.applicant?.first_name || account.applicant_first_name || "";
+    const lastName =
+      account.applicant?.last_name || account.applicant_last_name || "";
+    const name = `${firstName} ${lastName}`.trim() || "Unknown Applicant";
+
+    const confirmed = window.confirm(
+      `Revoke this access account?\n\nName: ${name}\nAccess ID: ${accessId}\n\nThis will preserve the account history but prevent the account from being treated as active.`
+    );
+
+    if (!confirmed) return;
+
+    setRevokingAccount(true);
+
+    try {
+      const supabase = getSupabaseClient() as any;
+
+      const { error } = await supabase
+        .from("access_accounts")
+        .update({
+          status: "revoked",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", accountId);
+
+      if (error) {
+        alert(error.message || "Unable to revoke account.");
+        return;
+      }
+
+      await refresh();
+      await refreshTimeline();
+      alert("Access account revoked.");
+    } catch (error) {
+      alert(
+        error instanceof Error ? error.message : "Unable to revoke account."
+      );
+    } finally {
+      setRevokingAccount(false);
+    }
+  }
+
+  async function deleteAccount() {
+    if (!account) return;
+
+    const accessId = account.access_id || "Pending";
+    const firstName =
+      account.applicant?.first_name || account.applicant_first_name || "";
+    const lastName =
+      account.applicant?.last_name || account.applicant_last_name || "";
+    const name = `${firstName} ${lastName}`.trim() || "Unknown Applicant";
+
+    const confirmed = window.confirm(
+      `Delete this access account?\n\nName: ${name}\nAccess ID: ${accessId}\n\nThis is permanent and cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    const password = window.prompt(
+      "Enter your admin password to confirm deletion:"
+    );
+
+    if (!password) return;
+
+    setDeletingAccount(true);
+
+    try {
+      const supabase = getSupabaseClient() as any;
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user?.email) {
+        alert("Unable to verify the current admin user.");
+        return;
+      }
+
+      const { error: passwordError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password,
+      });
+
+      if (passwordError) {
+        alert("Password verification failed. Account was not deleted.");
+        return;
+      }
+
+      const { error: deleteError } = await supabase
+        .from("access_accounts")
+        .delete()
+        .eq("id", accountId);
+
+      if (deleteError) {
+        alert(
+          deleteError.message ||
+            "Unable to delete access account. If this account has request history, revoke the account instead."
+        );
+        return;
+      }
+
+      alert("Access account deleted.");
+      router.push("/admin/access-accounts");
+      router.refresh();
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to delete access account."
+      );
+    } finally {
+      setDeletingAccount(false);
+    }
+  }
+
   if (loading) {
     return <p className="muted-text">Loading account profile...</p>;
   }
@@ -331,19 +437,12 @@ export default function AccessAccountProfile({
     );
   }
 
-  const applicant = account.applicant;
-
-  const firstName =
-    applicant?.first_name || account.applicant_first_name || "";
-  const lastName =
-    applicant?.last_name || account.applicant_last_name || "";
-  const email =
-    applicant?.email || account.applicant_email || "";
-  const phone =
-    applicant?.phone || account.applicant_phone || "";
+  const firstName = account.applicant?.first_name || account.applicant_first_name || "";
+  const lastName = account.applicant?.last_name || account.applicant_last_name || "";
+  const email = account.applicant?.email || account.applicant_email || "";
+  const phone = account.applicant?.phone || account.applicant_phone || "";
 
   const name = `${firstName} ${lastName}`.trim() || "Unknown Applicant";
-
   const displayName =
     `${editForm.firstName} ${editForm.lastName}`.trim() || name;
 
@@ -550,9 +649,10 @@ export default function AccessAccountProfile({
                   >
                     <option value="pending">Pending</option>
                     <option value="active">Active</option>
-                    <option value="approved">Approved</option>
                     <option value="suspended">Suspended</option>
                     <option value="expired">Expired</option>
+                    <option value="revoked">Revoked</option>
+                    <option value="denied">Denied</option>
                   </select>
                 </label>
 
@@ -633,12 +733,14 @@ export default function AccessAccountProfile({
                 Back to Accounts
               </Link>
 
-              {accountStatus === "active" || accountStatus === "approved" ? (
+              {accountStatus === "active" ? (
                 <button
                   className="button danger"
                   type="button"
                   onClick={suspendAccount}
-                  disabled={suspendingAccount}
+                  disabled={
+                    suspendingAccount || revokingAccount || deletingAccount
+                  }
                 >
                   {suspendingAccount ? "Suspending..." : "Suspend Account"}
                 </button>
@@ -647,7 +749,9 @@ export default function AccessAccountProfile({
                   className="button primary"
                   type="button"
                   onClick={activateAccount}
-                  disabled={activatingAccount}
+                  disabled={
+                    activatingAccount || revokingAccount || deletingAccount
+                  }
                 >
                   {activatingAccount ? "Activating..." : "Activate Account"}
                 </button>
@@ -657,7 +761,12 @@ export default function AccessAccountProfile({
                 className="button secondary"
                 type="button"
                 onClick={renewAccount}
-                disabled={renewingAccount || !hasAccessId}
+                disabled={
+                  renewingAccount ||
+                  !hasAccessId ||
+                  revokingAccount ||
+                  deletingAccount
+                }
                 title={
                   hasAccessId
                     ? "Renew this account"
@@ -674,7 +783,30 @@ export default function AccessAccountProfile({
               <button className="button secondary" type="button">
                 Print Access Card
               </button>
+
+              <button
+                className="button danger"
+                type="button"
+                onClick={revokeAccount}
+                disabled={revokingAccount || deletingAccount}
+              >
+                {revokingAccount ? "Revoking..." : "Revoke Account"}
+              </button>
+
+              <button
+                className="button danger"
+                type="button"
+                onClick={deleteAccount}
+                disabled={deletingAccount || revokingAccount}
+              >
+                {deletingAccount ? "Deleting..." : "Delete Account"}
+              </button>
             </div>
+
+            <p className="muted-text" style={{ marginTop: 12 }}>
+              Revoke preserves history. Delete is permanent and requires the
+              current admin password.
+            </p>
           </Card>
 
           <Card title="Administrator Notes">
@@ -690,7 +822,7 @@ export default function AccessAccountProfile({
                 className="button primary"
                 type="button"
                 onClick={saveNotes}
-                disabled={savingNotes}
+                disabled={savingNotes || deletingAccount || revokingAccount}
               >
                 {savingNotes ? "Saving..." : "Save Notes"}
               </button>
