@@ -17,11 +17,21 @@ function createAdminClient() {
   });
 }
 
+function getSiteUrl() {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.URL ||
+    "https://kapapalaranch.com"
+  ).replace(/\/$/, "");
+}
+
 function randomAccessId() {
   return String(Math.floor(Math.random() * (99998 - 10000 + 1)) + 10000);
 }
 
-async function generateUniqueAccessId(supabase: ReturnType<typeof createAdminClient>) {
+async function generateUniqueAccessId(
+  supabase: ReturnType<typeof createAdminClient>
+) {
   for (let attempt = 0; attempt < 25; attempt += 1) {
     const candidate = randomAccessId();
 
@@ -41,6 +51,177 @@ async function generateUniqueAccessId(supabase: ReturnType<typeof createAdminCli
   }
 
   throw new Error("Unable to generate a unique Access ID.");
+}
+
+async function createOrUpdateAuthUser({
+  supabase,
+  email,
+  firstName,
+  lastName,
+  accountId,
+  accessId,
+}: {
+  supabase: ReturnType<typeof createAdminClient>;
+  email: string;
+  firstName: string;
+  lastName: string;
+  accountId: string;
+  accessId: string;
+}) {
+  const temporaryPassword = crypto.randomUUID();
+
+  const { data: createdUserData, error: createUserError } =
+    await supabase.auth.admin.createUser({
+      email,
+      password: temporaryPassword,
+      email_confirm: true,
+      user_metadata: {
+        first_name: firstName,
+        last_name: lastName,
+        access_account_id: accountId,
+        access_id: accessId,
+      },
+    });
+
+  if (!createUserError) {
+    return createdUserData.user?.id ?? null;
+  }
+
+  const message = createUserError.message.toLowerCase();
+
+  if (
+    message.includes("already") ||
+    message.includes("registered") ||
+    message.includes("exists")
+  ) {
+    console.warn(
+      "Auth user already exists. Continuing with password setup link generation."
+    );
+    return null;
+  }
+
+  throw createUserError;
+}
+
+async function generatePasswordSetupLink({
+  supabase,
+  email,
+}: {
+  supabase: ReturnType<typeof createAdminClient>;
+  email: string;
+}) {
+  const siteUrl = getSiteUrl();
+
+  const { data, error } = await supabase.auth.admin.generateLink({
+    type: "recovery",
+    email,
+    options: {
+      redirectTo: `${siteUrl}/set-password`,
+    },
+  });
+
+  if (error) {
+    console.warn("Unable to generate password setup link:", error);
+    return null;
+  }
+
+  return data.properties?.action_link || null;
+}
+
+async function sendWelcomeEmail({
+  email,
+  firstName,
+  accessId,
+  passwordSetupLink,
+}: {
+  email: string;
+  firstName: string;
+  accessId: string;
+  passwordSetupLink: string | null;
+}) {
+  const resendApiKey = process.env.RESEND_API_KEY;
+  const fromEmail =
+    process.env.RESEND_FROM_EMAIL ||
+    "Kapāpala Ranch Operations <operations@kapapalaranch.com>";
+
+  const subject = "Kapāpala Forest Reserve Access Account Approved";
+
+  const emailBody = `Aloha ${firstName},
+
+Welcome to the Kapāpala Forest Reserve Access System. Your Kapāpala Forest Reserve Access Account has been successfully registered and approved.
+
+Your Access ID is:
+
+${accessId}
+
+To set your account password and access the Kapāpala Access Portal, please use the secure link below:
+
+${
+  passwordSetupLink ||
+  "Password setup link could not be generated. Please contact Kapāpala Ranch Operations."
+}
+
+This link is time-sensitive. If it expires, please contact Kapāpala Ranch Operations for a new password setup link.
+
+Please keep this Access ID for your records. You may need it when submitting daily access requests or when communicating with Kapāpala Ranch regarding your access account.
+
+For more information about Kapāpala Forest Reserve access, including current rules, requirements, and important updates, please visit:
+
+https://kapapalaranch.com/forest-reserve-access
+
+As a reminder, your access account must be revalidated every two years in order to remain active. You are also responsible for reviewing and following all rules, requirements, and conditions of access as published on the Kapāpala Ranch website.
+
+Mahalo for helping us protect Kapāpala and ensure safe, responsible access to the Forest Reserve.
+
+Kapāpala Ranch Operations`;
+
+  if (!resendApiKey) {
+    console.warn("RESEND_API_KEY is missing. Welcome email was not sent.");
+    console.log("WELCOME EMAIL THAT WOULD HAVE BEEN SENT", {
+      to: email,
+      from: fromEmail,
+      subject,
+      body: emailBody,
+    });
+
+    return {
+      sent: false,
+      error: "RESEND_API_KEY is missing.",
+    };
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: fromEmail,
+      to: email,
+      subject,
+      text: emailBody,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+
+    console.error("Welcome email failed:", errorText);
+
+    return {
+      sent: false,
+      error: errorText,
+    };
+  }
+
+  const result = await response.json();
+
+  return {
+    sent: true,
+    error: null,
+    result,
+  };
 }
 
 type RouteContext = {
@@ -79,18 +260,54 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       );
     }
 
-    const accessId = existingAccount.access_id || (await generateUniqueAccessId(supabase));
+    const accessId =
+      existingAccount.access_id || (await generateUniqueAccessId(supabase));
+
+    const firstName =
+      existingAccount.applicant_first_name ||
+      existingAccount.first_name ||
+      "there";
+
+    const lastName =
+      existingAccount.applicant_last_name || existingAccount.last_name || "";
+
+    const email =
+      existingAccount.applicant_email || existingAccount.email || null;
+
+    let authUserId: string | null = null;
+    let passwordSetupLink: string | null = null;
+    let emailSent = false;
+    let emailError: string | null = null;
+
+    if (email) {
+      authUserId = await createOrUpdateAuthUser({
+        supabase,
+        email,
+        firstName,
+        lastName,
+        accountId,
+        accessId,
+      });
+
+      passwordSetupLink = await generatePasswordSetupLink({
+        supabase,
+        email,
+      });
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(now);
+    expiresAt.setFullYear(expiresAt.getFullYear() + 2);
 
     const { data: updatedAccount, error: updateError } = await supabase
       .from("access_accounts")
       .update({
         access_id: accessId,
         status: "active",
-        reviewed_at: new Date().toISOString(),
-        revalidated_at: new Date().toISOString(),
-        expires_at: new Date(
-          Date.now() + 1000 * 60 * 60 * 24 * 365 * 2
-        ).toISOString(),
+        profile_id: existingAccount.profile_id || authUserId,
+        reviewed_at: now.toISOString(),
+        revalidated_at: now.toISOString(),
+        expires_at: expiresAt.toISOString(),
       })
       .eq("id", accountId)
       .select("*")
@@ -106,40 +323,16 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       );
     }
 
-    const firstName =
-      updatedAccount.applicant_first_name ||
-      updatedAccount.first_name ||
-      "there";
-
-    const email =
-      updatedAccount.applicant_email ||
-      updatedAccount.email ||
-      null;
-
     if (email) {
-      console.log("SEND WELCOME EMAIL", {
-        to: email,
-        subject: "Kapāpala Forest Reserve Access Account Approved",
-        body: `Aloha ${firstName},
-
-Welcome to the Kapāpala Forest Reserve Access System. Your Kapāpala Forest Reserve Access Account has been successfully registered and approved.
-
-Your Access ID is:
-
-${accessId}
-
-Please keep this Access ID for your records. You may need it when submitting daily access requests or when communicating with Kapāpala Ranch regarding your access account.
-
-For more information about Kapāpala Forest Reserve access, including current rules, requirements, and important updates, please visit:
-
-https://kapapalaranch.com/forest-reserve-access
-
-As a reminder, your access account must be revalidated every two years in order to remain active. You are also responsible for reviewing and following all rules, requirements, and conditions of access as published on the Kapāpala Ranch website.
-
-Mahalo for helping us protect Kapāpala and ensure safe, responsible access to the Forest Reserve.
-
-Kapāpala Ranch Operations`,
+      const welcomeEmailResult = await sendWelcomeEmail({
+        email,
+        firstName,
+        accessId,
+        passwordSetupLink,
       });
+
+      emailSent = welcomeEmailResult.sent;
+      emailError = welcomeEmailResult.error;
     }
 
     return NextResponse.json({
@@ -147,6 +340,9 @@ Kapāpala Ranch Operations`,
       accessId,
       account: updatedAccount,
       emailPrepared: Boolean(email),
+      emailSent,
+      emailError,
+      passwordSetupLink,
     });
   } catch (error) {
     console.error("Account activation failed:", error);
