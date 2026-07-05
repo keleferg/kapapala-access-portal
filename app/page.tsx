@@ -19,7 +19,7 @@ export default function HomePage() {
 
         <div className="public-divider">or</div>
 
-        <Link className="button secondary full-width" href="/apply">
+        <Link className="button secondary full-width" href="/request-account">
           Request an Account
         </Link>
 
