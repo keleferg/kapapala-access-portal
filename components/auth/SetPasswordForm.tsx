@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getSupabaseClient } from "../../lib/supabaseClient";
 import Card from "../ui/Card";
 
@@ -9,10 +9,44 @@ export default function SetPasswordForm() {
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-
+  const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function prepareSession() {
+      const url = new URL(window.location.href);
+      const code = url.searchParams.get("code");
+
+      if (code) {
+        const { error: exchangeError } =
+          await supabase.auth.exchangeCodeForSession(code);
+
+        if (exchangeError) {
+          setError(exchangeError.message);
+          setReady(false);
+          return;
+        }
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        setError(
+          "This password setup link is invalid or expired. Please request a new link."
+        );
+        setReady(false);
+        return;
+      }
+
+      setReady(true);
+    }
+
+    void prepareSession();
+  }, [supabase]);
 
   async function updatePassword() {
     setLoading(true);
@@ -31,16 +65,16 @@ export default function SetPasswordForm() {
       return;
     }
 
-    const { error } = await supabase.auth.updateUser({
+    const { error: updateError } = await supabase.auth.updateUser({
       password,
     });
 
-    if (error) {
-      setError(error.message);
+    if (updateError) {
+      setError(updateError.message);
     } else {
       setMessage("Password saved. You can now sign in.");
       setTimeout(() => {
-        window.location.href = "/login";
+        window.location.href = "/";
       }, 1200);
     }
 
@@ -59,6 +93,7 @@ export default function SetPasswordForm() {
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
+            disabled={!ready || loading}
           />
         </label>
 
@@ -68,6 +103,7 @@ export default function SetPasswordForm() {
             type="password"
             value={confirm}
             onChange={(event) => setConfirm(event.target.value)}
+            disabled={!ready || loading}
           />
         </label>
 
@@ -75,7 +111,7 @@ export default function SetPasswordForm() {
           className="button primary"
           type="button"
           onClick={updatePassword}
-          disabled={loading}
+          disabled={!ready || loading}
         >
           {loading ? "Saving..." : "Save Password"}
         </button>

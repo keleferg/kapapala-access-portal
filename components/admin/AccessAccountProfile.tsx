@@ -11,6 +11,7 @@ import DocumentManager from "./account/DocumentManager";
 
 function tone(status: string): "green" | "yellow" | "red" {
   if (status === "active") return "green";
+  if (status === "approved") return "green";
   if (status === "pending") return "yellow";
   return "red";
 }
@@ -57,6 +58,10 @@ export default function AccessAccountProfile({
 
   const [editingProfile, setEditingProfile] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [activatingAccount, setActivatingAccount] = useState(false);
+  const [suspendingAccount, setSuspendingAccount] = useState(false);
+  const [renewingAccount, setRenewingAccount] = useState(false);
+
   const [editForm, setEditForm] = useState<EditProfileForm>({
     firstName: "",
     lastName: "",
@@ -75,10 +80,22 @@ export default function AccessAccountProfile({
       setNotes(account.internal_notes || "");
 
       setEditForm({
-        firstName: account.applicant?.first_name || "",
-        lastName: account.applicant?.last_name || "",
-        email: account.applicant?.email || "",
-        phone: account.applicant?.phone || "",
+        firstName:
+          account.applicant?.first_name ||
+          account.applicant_first_name ||
+          "",
+        lastName:
+          account.applicant?.last_name ||
+          account.applicant_last_name ||
+          "",
+        email:
+          account.applicant?.email ||
+          account.applicant_email ||
+          "",
+        phone:
+          account.applicant?.phone ||
+          account.applicant_phone ||
+          "",
         accessId: account.access_id || "",
         status: account.status || "pending",
         defaultGate: account.default_gate || "",
@@ -100,10 +117,22 @@ export default function AccessAccountProfile({
     if (!account) return;
 
     setEditForm({
-      firstName: account.applicant?.first_name || "",
-      lastName: account.applicant?.last_name || "",
-      email: account.applicant?.email || "",
-      phone: account.applicant?.phone || "",
+      firstName:
+        account.applicant?.first_name ||
+        account.applicant_first_name ||
+        "",
+      lastName:
+        account.applicant?.last_name ||
+        account.applicant_last_name ||
+        "",
+      email:
+        account.applicant?.email ||
+        account.applicant_email ||
+        "",
+      phone:
+        account.applicant?.phone ||
+        account.applicant_phone ||
+        "",
       accessId: account.access_id || "",
       status: account.status || "pending",
       defaultGate: account.default_gate || "",
@@ -179,6 +208,8 @@ export default function AccessAccountProfile({
   }
 
   async function renewAccount() {
+    setRenewingAccount(true);
+
     try {
       const response = await fetch(`/api/access-accounts/${accountId}/renew`, {
         method: "POST",
@@ -196,10 +227,20 @@ export default function AccessAccountProfile({
       alert("Account renewed.");
     } catch (error) {
       alert(error instanceof Error ? error.message : "Unable to renew account.");
+    } finally {
+      setRenewingAccount(false);
     }
   }
 
   async function suspendAccount() {
+    const confirmed = window.confirm(
+      "Are you sure you want to suspend this access account?"
+    );
+
+    if (!confirmed) return;
+
+    setSuspendingAccount(true);
+
     try {
       const response = await fetch(`/api/access-accounts/${accountId}/suspend`, {
         method: "POST",
@@ -214,28 +255,53 @@ export default function AccessAccountProfile({
 
       await refresh();
       await refreshTimeline();
+      alert("Account suspended.");
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Unable to suspend account.");
+      alert(
+        error instanceof Error ? error.message : "Unable to suspend account."
+      );
+    } finally {
+      setSuspendingAccount(false);
     }
   }
 
-  async function reactivateAccount() {
+  async function activateAccount() {
+    const confirmed = window.confirm(
+      "Activate this access account? This will assign an Access ID and send the applicant a confirmation email."
+    );
+
+    if (!confirmed) return;
+
+    setActivatingAccount(true);
+
     try {
-      const response = await fetch(`/api/access-accounts/${accountId}/reactivate`, {
+      const response = await fetch(`/api/access-accounts/${accountId}/activate`, {
         method: "POST",
       });
 
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        alert(result.error || "Unable to reactivate account.");
+        alert(result.error || "Unable to activate account.");
         return;
       }
 
       await refresh();
       await refreshTimeline();
+
+      const accessId = result.accessId || result.account?.access_id;
+
+      alert(
+        accessId
+          ? `Account activated. Access ID: ${accessId}`
+          : "Account activated."
+      );
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Unable to reactivate account.");
+      alert(
+        error instanceof Error ? error.message : "Unable to activate account."
+      );
+    } finally {
+      setActivatingAccount(false);
     }
   }
 
@@ -266,12 +332,23 @@ export default function AccessAccountProfile({
   }
 
   const applicant = account.applicant;
-  const name = applicant
-    ? `${applicant.first_name || ""} ${applicant.last_name || ""}`.trim()
-    : "Unknown Applicant";
+
+  const firstName =
+    applicant?.first_name || account.applicant_first_name || "";
+  const lastName =
+    applicant?.last_name || account.applicant_last_name || "";
+  const email =
+    applicant?.email || account.applicant_email || "";
+  const phone =
+    applicant?.phone || account.applicant_phone || "";
+
+  const name = `${firstName} ${lastName}`.trim() || "Unknown Applicant";
 
   const displayName =
     `${editForm.firstName} ${editForm.lastName}`.trim() || name;
+
+  const accountStatus = account.status || "pending";
+  const hasAccessId = Boolean(account.access_id);
 
   return (
     <>
@@ -294,24 +371,27 @@ export default function AccessAccountProfile({
               </div>
 
               <StatusBadge
-                label={titleCase(account.status)}
-                tone={tone(account.status)}
+                label={titleCase(accountStatus)}
+                tone={tone(accountStatus)}
               />
             </div>
 
             <div className="profile-metric-grid">
               <div>
                 <span>Status</span>
-                <strong>{titleCase(account.status)}</strong>
+                <strong>{titleCase(accountStatus)}</strong>
               </div>
+
               <div>
                 <span>Access ID</span>
                 <strong>{account.access_id || "Pending"}</strong>
               </div>
+
               <div>
                 <span>Preferred Gate</span>
                 <strong>{account.default_gate || "—"}</strong>
               </div>
+
               <div>
                 <span>Vehicles</span>
                 <strong>{account.vehicles?.length || 0}</strong>
@@ -358,14 +438,17 @@ export default function AccessAccountProfile({
                   <span>Name</span>
                   <strong>{name}</strong>
                 </div>
+
                 <div>
                   <span>Email</span>
-                  <strong>{applicant?.email || "—"}</strong>
+                  <strong>{email || "—"}</strong>
                 </div>
+
                 <div>
                   <span>Phone</span>
-                  <strong>{applicant?.phone || "—"}</strong>
+                  <strong>{phone || "—"}</strong>
                 </div>
+
                 <div>
                   <span>Organization / Purpose</span>
                   <strong>{account.organization || "—"}</strong>
@@ -434,10 +517,12 @@ export default function AccessAccountProfile({
                   <span>Access ID</span>
                   <strong>{account.access_id || "Pending"}</strong>
                 </div>
+
                 <div>
                   <span>Status</span>
-                  <strong>{titleCase(account.status)}</strong>
+                  <strong>{titleCase(accountStatus)}</strong>
                 </div>
+
                 <div>
                   <span>Preferred Gate</span>
                   <strong>{account.default_gate || "—"}</strong>
@@ -465,6 +550,7 @@ export default function AccessAccountProfile({
                   >
                     <option value="pending">Pending</option>
                     <option value="active">Active</option>
+                    <option value="approved">Approved</option>
                     <option value="suspended">Suspended</option>
                     <option value="expired">Expired</option>
                   </select>
@@ -490,6 +576,7 @@ export default function AccessAccountProfile({
                   <span>Name</span>
                   <strong>{account.emergency_contact_name || "—"}</strong>
                 </div>
+
                 <div>
                   <span>Phone</span>
                   <strong>{account.emergency_contact_phone || "—"}</strong>
@@ -546,26 +633,38 @@ export default function AccessAccountProfile({
                 Back to Accounts
               </Link>
 
-              {account.status === "active" ? (
+              {accountStatus === "active" || accountStatus === "approved" ? (
                 <button
                   className="button danger"
                   type="button"
                   onClick={suspendAccount}
+                  disabled={suspendingAccount}
                 >
-                  Suspend Account
+                  {suspendingAccount ? "Suspending..." : "Suspend Account"}
                 </button>
               ) : (
                 <button
                   className="button primary"
                   type="button"
-                  onClick={reactivateAccount}
+                  onClick={activateAccount}
+                  disabled={activatingAccount}
                 >
-                  Reactivate Account
+                  {activatingAccount ? "Activating..." : "Activate Account"}
                 </button>
               )}
 
-              <button className="button secondary" type="button" onClick={renewAccount}>
-                Renew
+              <button
+                className="button secondary"
+                type="button"
+                onClick={renewAccount}
+                disabled={renewingAccount || !hasAccessId}
+                title={
+                  hasAccessId
+                    ? "Renew this account"
+                    : "Activate the account before renewing"
+                }
+              >
+                {renewingAccount ? "Renewing..." : "Renew"}
               </button>
 
               <button className="button secondary" type="button">
