@@ -57,13 +57,12 @@ export default function AccessAccountWizard() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [idFile, setIdFile] = useState<File | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [loadingUser, setLoadingUser] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState("");
   const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
-    async function loadUser() {
+    async function loadOptionalUser() {
       const supabase = getSupabaseClient();
 
       const {
@@ -72,7 +71,7 @@ export default function AccessAccountWizard() {
       } = await supabase.auth.getUser();
 
       if (error) {
-        console.error("Unable to load signed-in user:", error);
+        console.warn("No signed-in user found for public application:", error);
       }
 
       setUserId(user?.id ?? null);
@@ -83,11 +82,9 @@ export default function AccessAccountWizard() {
           email: current.email || user.email || "",
         }));
       }
-
-      setLoadingUser(false);
     }
 
-    void loadUser();
+    void loadOptionalUser();
   }, []);
 
   function updateField<K extends keyof FormState>(field: K, value: FormState[K]) {
@@ -147,23 +144,6 @@ export default function AccessAccountWizard() {
     );
   }
 
-  function nextStep() {
-    setSubmitMessage("");
-    setSubmitError("");
-
-    if (!isStepComplete(step)) {
-      setSubmitError(getStepErrorMessage(step));
-      return;
-    }
-
-    setStep((current) => Math.min(current + 1, steps.length - 1));
-  }
-
-  function previousStep() {
-    setSubmitError("");
-    setStep((current) => Math.max(current - 1, 0));
-  }
-
   function getStepErrorMessage(stepIndex: number): string {
     switch (stepIndex) {
       case 0:
@@ -183,14 +163,26 @@ export default function AccessAccountWizard() {
     }
   }
 
-  async function submitApplication() {
+  function nextStep() {
     setSubmitMessage("");
     setSubmitError("");
 
-    if (!userId) {
-      setSubmitError("Please log in before requesting an access account.");
+    if (!isStepComplete(step)) {
+      setSubmitError(getStepErrorMessage(step));
       return;
     }
+
+    setStep((current) => Math.min(current + 1, steps.length - 1));
+  }
+
+  function previousStep() {
+    setSubmitError("");
+    setStep((current) => Math.max(current - 1, 0));
+  }
+
+  async function submitApplication() {
+    setSubmitMessage("");
+    setSubmitError("");
 
     if (!areRequiredStepsComplete()) {
       setSubmitError(
@@ -210,8 +202,9 @@ export default function AccessAccountWizard() {
     try {
       const supabase = getSupabaseClient();
 
+      const applicationId = crypto.randomUUID();
       const safeFileName = idFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const idDocumentPath = `${userId}/${crypto.randomUUID()}-${safeFileName}`;
+      const idDocumentPath = `pending/${applicationId}-${safeFileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("access-account-ids")
@@ -230,6 +223,7 @@ export default function AccessAccountWizard() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          applicationId,
           profileId: userId,
           firstName: form.firstName.trim(),
           lastName: form.lastName.trim(),
@@ -274,25 +268,6 @@ export default function AccessAccountWizard() {
     } finally {
       setIsSubmitting(false);
     }
-  }
-
-  if (loadingUser) {
-    return (
-      <Card title="Request an Access Account">
-        <p>Checking login status...</p>
-      </Card>
-    );
-  }
-
-  if (!userId) {
-    return (
-      <Card title="Request an Access Account">
-        <p>Please log in or create an account before requesting access.</p>
-        <a className="button primary" href="/">
-          Log In / Create Account
-        </a>
-      </Card>
-    );
   }
 
   return (
