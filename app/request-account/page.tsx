@@ -1,14 +1,4 @@
-"use client";
-
-import dynamic from "next/dynamic";
-
-const AccessAccountWizard = dynamic(
-  () => import("../../components/account/AccessAccountWizard"),
-  {
-    ssr: false,
-    loading: () => <p>Loading account request form...</p>,
-  }
-);
+import AccessAccountWizard from "../../components/account/AccessAccountWizard";
 
 export default function RequestAccountPage() {
   return <AccessAccountWizard />;
