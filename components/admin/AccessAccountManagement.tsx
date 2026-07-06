@@ -132,7 +132,13 @@ function getVehicleSummary(account: AccessAccount) {
     .join(", ");
 }
 
-export default function AccessAccountManagement() {
+type AccessAccountManagementProps = {
+  accountId?: string;
+};
+
+export default function AccessAccountManagement({
+  accountId,
+}: AccessAccountManagementProps) {
   const {
     accounts,
     loading,
@@ -205,10 +211,11 @@ export default function AccessAccountManagement() {
   }, [accounts, search, statusFilter]);
 
   const selected =
-    filteredAccounts.find((account) => account.id === selectedAccountId) ||
-    filteredAccounts[0] ||
-    accounts[0] ||
-    null;
+  accounts.find((account) => account.id === accountId) ||
+  filteredAccounts.find((account) => account.id === selectedAccountId) ||
+  filteredAccounts[0] ||
+  accounts[0] ||
+  null;
 
   const activeCount = accounts.filter(
     (account) => account.status === "active"
