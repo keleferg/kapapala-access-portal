@@ -289,46 +289,22 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       setup link and do not call Resend. Repeated activation calls become harmless.
     */
     if (welcomeEmailAlreadySent) {
-      const { data: updatedAccount, error: updateError } = await supabase
-        .from("access_accounts")
-        .update({
-          access_id: accessId,
-          status: "active",
-          reviewed_at: existingAccount.reviewed_at || now.toISOString(),
-          revalidated_at: existingAccount.revalidated_at || now.toISOString(),
-          expires_at: existingAccount.expires_at || expiresAt.toISOString(),
-          welcome_email_last_error: null,
-        })
-        .eq("id", accountId)
-        .select("*")
-        .single();
+  console.log("Welcome email already sent. Returning without changes.", {
+    accountId,
+    welcomeEmailSentAt: existingAccount.welcome_email_sent_at,
+  });
 
-      if (updateError || !updatedAccount) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: updateError?.message || "Unable to activate account.",
-          },
-          { status: 500 }
-        );
-      }
-
-      console.log("Welcome email already sent. Skipping all email work.", {
-        accountId,
-        welcomeEmailSentAt: existingAccount.welcome_email_sent_at,
-      });
-
-      return NextResponse.json({
-        success: true,
-        accessId,
-        account: updatedAccount,
-        emailPrepared: Boolean(email),
-        emailSent: false,
-        emailError: "Welcome email was already sent previously.",
-        welcomeEmailAlreadySent: true,
-        passwordSetupLink: null,
-      });
-    }
+  return NextResponse.json({
+    success: true,
+    accessId,
+    account: existingAccount,
+    emailPrepared: Boolean(email),
+    emailSent: false,
+    emailError: "Welcome email was already sent previously.",
+    welcomeEmailAlreadySent: true,
+    passwordSetupLink: null,
+  });
+}
 
     if (email) {
       authUserId = await createOrUpdateAuthUser({
