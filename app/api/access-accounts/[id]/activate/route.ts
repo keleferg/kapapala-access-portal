@@ -95,7 +95,7 @@ async function createOrUpdateAuthUser({
     message.includes("exists")
   ) {
     console.warn(
-      "Auth user already exists. Continuing with password setup link generation."
+      "Auth user already exists. Continuing without creating duplicate auth user."
     );
     return null;
   }
@@ -175,18 +175,12 @@ Mahalo for helping us protect Kapāpala and ensure safe, responsible access to t
 
 Kapāpala Ranch Operations`;
 
-  if (!resendApiKey) {
-    console.warn("RESEND_API_KEY is missing. Welcome email was not sent.");
-    console.log("WELCOME EMAIL THAT WOULD HAVE BEEN SENT", {
-      to: email,
-      from: fromEmail,
-      subject,
-      body: emailBody,
-    });
+  if (!resendApiKey || resendApiKey === "disabled_temporarily") {
+    console.warn("RESEND_API_KEY is missing or disabled. Welcome email was not sent.");
 
     return {
       sent: false,
-      error: "RESEND_API_KEY is missing.",
+      error: "RESEND_API_KEY is missing or disabled.",
       result: null,
     };
   }
@@ -280,10 +274,61 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       existingAccount.welcome_email_sent_at
     );
 
+    const now = new Date();
+    const expiresAt = new Date(now);
+    expiresAt.setFullYear(expiresAt.getFullYear() + 2);
+
     let authUserId: string | null = null;
     let passwordSetupLink: string | null = null;
     let emailSent = false;
     let emailError: string | null = null;
+
+    /*
+      Safety guard:
+      If the welcome email was already sent, do not create a new password
+      setup link and do not call Resend. Repeated activation calls become harmless.
+    */
+    if (welcomeEmailAlreadySent) {
+      const { data: updatedAccount, error: updateError } = await supabase
+        .from("access_accounts")
+        .update({
+          access_id: accessId,
+          status: "active",
+          reviewed_at: existingAccount.reviewed_at || now.toISOString(),
+          revalidated_at: existingAccount.revalidated_at || now.toISOString(),
+          expires_at: existingAccount.expires_at || expiresAt.toISOString(),
+          welcome_email_last_error: null,
+        })
+        .eq("id", accountId)
+        .select("*")
+        .single();
+
+      if (updateError || !updatedAccount) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: updateError?.message || "Unable to activate account.",
+          },
+          { status: 500 }
+        );
+      }
+
+      console.log("Welcome email already sent. Skipping all email work.", {
+        accountId,
+        welcomeEmailSentAt: existingAccount.welcome_email_sent_at,
+      });
+
+      return NextResponse.json({
+        success: true,
+        accessId,
+        account: updatedAccount,
+        emailPrepared: Boolean(email),
+        emailSent: false,
+        emailError: "Welcome email was already sent previously.",
+        welcomeEmailAlreadySent: true,
+        passwordSetupLink: null,
+      });
+    }
 
     if (email) {
       authUserId = await createOrUpdateAuthUser({
@@ -300,10 +345,6 @@ export async function POST(_request: NextRequest, context: RouteContext) {
         email,
       });
     }
-
-    const now = new Date();
-    const expiresAt = new Date(now);
-    expiresAt.setFullYear(expiresAt.getFullYear() + 2);
 
     const { data: updatedAccount, error: updateError } = await supabase
       .from("access_accounts")
@@ -330,41 +371,31 @@ export async function POST(_request: NextRequest, context: RouteContext) {
     }
 
     if (email) {
-      if (welcomeEmailAlreadySent) {
-        console.log("Welcome email already sent. Skipping duplicate send.", {
-          accountId,
-          welcomeEmailSentAt: existingAccount.welcome_email_sent_at,
-        });
+      const welcomeEmailResult = await sendWelcomeEmail({
+        email,
+        firstName,
+        accessId,
+        passwordSetupLink,
+      });
 
-        emailSent = false;
-        emailError = "Welcome email was already sent previously.";
-      } else {
-        const welcomeEmailResult = await sendWelcomeEmail({
-          email,
-          firstName,
-          accessId,
-          passwordSetupLink,
-        });
+      emailSent = welcomeEmailResult.sent;
+      emailError = welcomeEmailResult.error;
 
-        emailSent = welcomeEmailResult.sent;
-        emailError = welcomeEmailResult.error;
+      const { error: emailTrackingError } = await supabase
+        .from("access_accounts")
+        .update({
+          welcome_email_sent_at: welcomeEmailResult.sent
+            ? new Date().toISOString()
+            : null,
+          welcome_email_last_error: welcomeEmailResult.error,
+        })
+        .eq("id", accountId);
 
-        const { error: emailTrackingError } = await supabase
-          .from("access_accounts")
-          .update({
-            welcome_email_sent_at: welcomeEmailResult.sent
-              ? new Date().toISOString()
-              : null,
-            welcome_email_last_error: welcomeEmailResult.error,
-          })
-          .eq("id", accountId);
-
-        if (emailTrackingError) {
-          console.warn(
-            "Unable to update welcome email tracking fields:",
-            emailTrackingError
-          );
-        }
+      if (emailTrackingError) {
+        console.warn(
+          "Unable to update welcome email tracking fields:",
+          emailTrackingError
+        );
       }
     }
 
@@ -375,7 +406,7 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       emailPrepared: Boolean(email),
       emailSent,
       emailError,
-      welcomeEmailAlreadySent,
+      welcomeEmailAlreadySent: false,
       passwordSetupLink,
     });
   } catch (error) {
