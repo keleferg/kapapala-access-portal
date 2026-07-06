@@ -25,6 +25,19 @@ type GateFormState = {
   notes: string;
 };
 
+type SharePointGateCodePayload = {
+  gateName: string;
+  gateId: string;
+  comboId: string;
+  code: string;
+  validFrom: string;
+  validUntil: string;
+  isActive: boolean;
+  gateStatus: string;
+  publicNote: string;
+  updatedBy?: string | null;
+};
+
 function statusTone(status: string | null): GateTone {
   switch ((status || "").toLowerCase()) {
     case "open":
@@ -60,6 +73,36 @@ function todayDateString(): string {
   const day = String(now.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
+}
+
+async function syncGateCodeUpdateToSharePoint(
+  payload: SharePointGateCodePayload
+) {
+  const response = await fetch("/api/admin/sharepoint/gate-code-update", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      ...payload,
+      updatedAt: new Date().toISOString(),
+      source: "Kapapala Access Portal",
+    }),
+  });
+
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok || !result?.success) {
+    console.error("SharePoint reverse bridge failed:", result);
+
+    throw new Error(
+      result?.error ||
+        result?.details ||
+        "Gate code saved in the app, but SharePoint sync failed."
+    );
+  }
+
+  return result;
 }
 
 export default function GateCombinationManager() {
@@ -158,34 +201,91 @@ export default function GateCombinationManager() {
 
     const supabase = getSupabaseClient();
 
-    const { error: saveError } = await (supabase as any).rpc(
-      "admin_save_gate_combination_manager_card",
-      {
-        p_gate_id: gate.gate_id,
-        p_combination: form.combination.trim(),
-        p_combination_date: form.date,
-        p_gate_status: form.gateStatus.toLowerCase(),
-        p_public_note: form.notes.trim(),
-      }
-    );
+    try {
+      const {
+        data: { user },
+      } = await (supabase as any).auth.getUser();
 
-    if (saveError) {
-      console.error("Gate save failed:", saveError);
+      const { data: savedData, error: saveError } = await (supabase as any).rpc(
+        "admin_save_gate_combination_manager_card",
+        {
+          p_gate_id: gate.gate_id,
+          p_combination: form.combination.trim(),
+          p_combination_date: form.date,
+          p_gate_status: form.gateStatus.toLowerCase(),
+          p_public_note: form.notes.trim(),
+        }
+      );
+
+      if (saveError) {
+        console.error("Gate save failed:", saveError);
+
+        setMessageByGate((current) => ({
+          ...current,
+          [gate.gate_id]: `Save failed: ${saveError.message}`,
+        }));
+
+        return;
+      }
+
+      /*
+        The SharePoint bridge needs a stable comboId.
+
+        If the RPC returns the saved combination id, this will use it.
+        If not, it falls back to a predictable gate/date key so the
+        reverse bridge still has something stable to match on.
+      */
+
+      const savedRow = Array.isArray(savedData) ? savedData[0] : savedData;
+
+      const comboId =
+        savedRow?.combo_id ||
+        savedRow?.combination_id ||
+        savedRow?.id ||
+        `${gate.gate_id}-${form.date}`;
+
+      try {
+        await syncGateCodeUpdateToSharePoint({
+          gateName: gate.gate_name || "Unnamed Gate",
+          gateId: gate.gate_id,
+          comboId,
+          code: form.combination.trim(),
+          validFrom: form.date,
+          validUntil: form.date,
+          isActive: true,
+          gateStatus: form.gateStatus.toLowerCase(),
+          publicNote: form.notes.trim(),
+          updatedBy: user?.id ?? null,
+        });
+
+        setMessageByGate((current) => ({
+          ...current,
+          [gate.gate_id]: "Saved and synced to SharePoint.",
+        }));
+      } catch (syncError) {
+        console.error("SharePoint sync failed:", syncError);
+
+        setMessageByGate((current) => ({
+          ...current,
+          [gate.gate_id]:
+            syncError instanceof Error
+              ? syncError.message
+              : "Saved in the app, but SharePoint sync failed.",
+        }));
+      }
+
+      await loadGateManager();
+    } catch (error) {
+      console.error("Gate save failed:", error);
+
       setMessageByGate((current) => ({
         ...current,
-        [gate.gate_id]: `Save failed: ${saveError.message}`,
+        [gate.gate_id]:
+          error instanceof Error ? error.message : "Unable to save gate.",
       }));
+    } finally {
       setSavingGateId(null);
-      return;
     }
-
-    setMessageByGate((current) => ({
-      ...current,
-      [gate.gate_id]: "Saved.",
-    }));
-
-    setSavingGateId(null);
-    await loadGateManager();
   }
 
   if (loading) {

@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Card from "../ui/Card";
 import StatusBadge from "../ui/StatusBadge";
 import { getSupabaseClient } from "../../lib/supabaseClient";
 
 type RequestStatus = "pending" | "approved" | "denied" | "cancelled" | string;
+type RequestTab = "today" | "future" | "past";
 
 type DailyAccessRequest = {
   id: string;
@@ -19,6 +20,8 @@ type DailyAccessRequest = {
 
   access_accounts: {
     access_id: string | null;
+    applicant_first_name?: string | null;
+    applicant_last_name?: string | null;
     profiles: {
       first_name: string | null;
       last_name: string | null;
@@ -54,11 +57,19 @@ function tomorrowDateString(): string {
 function getRequesterName(request: DailyAccessRequest) {
   const profile = request.access_accounts?.profiles;
 
-  const firstName = profile?.first_name?.trim() ?? "";
-  const lastName = profile?.last_name?.trim() ?? "";
-  const fullName = `${firstName} ${lastName}`.trim();
+  const profileFirstName = profile?.first_name?.trim() ?? "";
+  const profileLastName = profile?.last_name?.trim() ?? "";
+  const profileFullName = `${profileFirstName} ${profileLastName}`.trim();
 
-  return fullName || "Unknown User";
+  if (profileFullName) return profileFullName;
+
+  const applicantFirstName =
+    request.access_accounts?.applicant_first_name?.trim() ?? "";
+  const applicantLastName =
+    request.access_accounts?.applicant_last_name?.trim() ?? "";
+  const applicantFullName = `${applicantFirstName} ${applicantLastName}`.trim();
+
+  return applicantFullName || "Unknown User";
 }
 
 function formatStatus(status: RequestStatus) {
@@ -93,22 +104,64 @@ function formatDateLabel(dateValue: string) {
   });
 }
 
+function tabLabel(tab: RequestTab) {
+  if (tab === "today") return "Today";
+  if (tab === "future") return "Future";
+  return "Past";
+}
+
 export default function DailyAccessQueue() {
   const [requests, setRequests] = useState<DailyAccessRequest[]>([]);
+  const [activeTab, setActiveTab] = useState<RequestTab>("today");
   const [loading, setLoading] = useState(true);
+  const [deletingRequestId, setDeletingRequestId] = useState<string | null>(
+    null
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     void loadRequests();
   }, []);
 
+  const today = todayDateString();
+
+  const todayRequests = useMemo(() => {
+    return requests
+      .filter((request) => request.request_date === today)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }, [requests, today]);
+
+  const futureRequests = useMemo(() => {
+    return requests
+      .filter((request) => request.request_date > today)
+      .sort((a, b) => {
+        const dateCompare = a.request_date.localeCompare(b.request_date);
+        if (dateCompare !== 0) return dateCompare;
+        return b.created_at.localeCompare(a.created_at);
+      });
+  }, [requests, today]);
+
+  const pastRequests = useMemo(() => {
+    return requests
+      .filter((request) => request.request_date < today)
+      .sort((a, b) => {
+        const dateCompare = b.request_date.localeCompare(a.request_date);
+        if (dateCompare !== 0) return dateCompare;
+        return b.created_at.localeCompare(a.created_at);
+      });
+  }, [requests, today]);
+
+  const filteredRequests = useMemo(() => {
+    if (activeTab === "today") return todayRequests;
+    if (activeTab === "future") return futureRequests;
+    return pastRequests;
+  }, [activeTab, todayRequests, futureRequests, pastRequests]);
+
   async function loadRequests() {
     setLoading(true);
     setErrorMessage(null);
 
     const supabase = getSupabaseClient();
-    const today = todayDateString();
-    const tomorrow = tomorrowDateString();
 
     const { data, error } = await supabase
       .from("daily_access_requests")
@@ -122,6 +175,8 @@ export default function DailyAccessQueue() {
         created_at,
         access_accounts (
           access_id,
+          applicant_first_name,
+          applicant_last_name,
           profiles!access_accounts_profile_id_fkey (
             first_name,
             last_name
@@ -131,9 +186,7 @@ export default function DailyAccessQueue() {
           name
         )
       `)
-      .gte("request_date", today)
-      .lte("request_date", tomorrow)
-      .order("request_date", { ascending: true })
+      .order("request_date", { ascending: false })
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -148,17 +201,73 @@ export default function DailyAccessQueue() {
     setLoading(false);
   }
 
+  async function deleteRequest(request: DailyAccessRequest) {
+    const requesterName = getRequesterName(request);
+    const accessId = request.access_accounts?.access_id || "Pending";
+    const gateName = request.gates?.name || "—";
+
+    const confirmed = window.confirm(
+      `Delete this daily access request?\n\nRequester: ${requesterName}\nAccess ID: ${accessId}\nGate: ${gateName}\nDate: ${request.request_date}\n\nThis cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    setDeletingRequestId(request.id);
+    setErrorMessage(null);
+
+    const supabase = getSupabaseClient();
+
+    const { error } = await supabase
+      .from("daily_access_requests")
+      .delete()
+      .eq("id", request.id);
+
+    if (error) {
+      console.error("Unable to delete daily access request:", error);
+      setErrorMessage(error.message || "Unable to delete daily access request.");
+      setDeletingRequestId(null);
+      return;
+    }
+
+    setRequests((currentRequests) =>
+      currentRequests.filter((currentRequest) => currentRequest.id !== request.id)
+    );
+    setDeletingRequestId(null);
+  }
+
   return (
     <Card title="Daily Access Request Queue">
       <div className="admin-toolbar">
         <div>
           <strong>Daily access requests</strong>
-          <p>Today and tomorrow&apos;s daily access requests from Supabase.</p>
+          <p>Review today&apos;s, future, and past daily access requests.</p>
         </div>
 
         <button className="button secondary" type="button" onClick={loadRequests}>
           Refresh
         </button>
+      </div>
+
+      <div className="admin-toolbar" style={{ justifyContent: "flex-start" }}>
+        {(["today", "future", "past"] as RequestTab[]).map((tab) => {
+          const count =
+            tab === "today"
+              ? todayRequests.length
+              : tab === "future"
+                ? futureRequests.length
+                : pastRequests.length;
+
+          return (
+            <button
+              key={tab}
+              type="button"
+              className={`button ${activeTab === tab ? "" : "secondary"}`}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tabLabel(tab)} ({count})
+            </button>
+          );
+        })}
       </div>
 
       {loading && <p className="muted-text">Loading daily access requests...</p>}
@@ -170,13 +279,13 @@ export default function DailyAccessQueue() {
         </div>
       )}
 
-      {!loading && !errorMessage && requests.length === 0 && (
+      {!loading && !errorMessage && filteredRequests.length === 0 && (
         <p className="muted-text">
-          No daily access requests for today or tomorrow.
+          No {tabLabel(activeTab).toLowerCase()} daily access requests.
         </p>
       )}
 
-      {!loading && !errorMessage && requests.length > 0 && (
+      {!loading && !errorMessage && filteredRequests.length > 0 && (
         <div className="compact-request-table">
           <div className="compact-request-header">
             <span>Requester</span>
@@ -190,10 +299,11 @@ export default function DailyAccessQueue() {
             <span></span>
           </div>
 
-          {requests.map((request) => {
+          {filteredRequests.map((request) => {
             const requesterName = getRequesterName(request);
             const accessId = request.access_accounts?.access_id || "Pending";
             const partySize = request.party_size ?? 0;
+            const isDeleting = deletingRequestId === request.id;
 
             return (
               <div className="compact-request-row" key={request.id}>
@@ -217,6 +327,15 @@ export default function DailyAccessQueue() {
                   >
                     View
                   </Link>
+
+                  <button
+                    className="button secondary"
+                    type="button"
+                    disabled={isDeleting}
+                    onClick={() => void deleteRequest(request)}
+                  >
+                    {isDeleting ? "Deleting..." : "Delete"}
+                  </button>
                 </span>
               </div>
             );

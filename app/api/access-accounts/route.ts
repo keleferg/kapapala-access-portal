@@ -13,6 +13,10 @@ type AccessAccountPayload = {
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   defaultGate?: "Wood Valley" | "Honanui" | "ʻĀinapō";
+  adminCreated?: boolean;
+  bypassPhotoId?: boolean;
+  bypassNotifications?: boolean;
+  status?: "pending" | "active";
   vehicles?: {
     label?: string;
     licensePlate: string;
@@ -23,6 +27,45 @@ type AccessAccountPayload = {
     isDefault?: boolean;
   }[];
 };
+
+async function getNextAccessId(supabase: any) {
+  const { data, error } = await supabase
+    .from("access_accounts")
+    .select("access_id")
+    .not("access_id", "is", null);
+
+  if (error) {
+    throw new Error(error.message || "Unable to determine next Access ID.");
+  }
+
+  const highestAccessId = (data ?? [])
+    .map((row: { access_id: string | null }) => row.access_id)
+    .filter((accessId: string | null): accessId is string =>
+      Boolean(accessId && /^[0-9]+$/.test(accessId))
+    )
+    .map((accessId: string) => Number.parseInt(accessId, 10))
+    .filter((accessId: number) => Number.isFinite(accessId))
+    .reduce((highest: number, accessId: number) => {
+      return accessId > highest ? accessId : highest;
+    }, 0);
+
+  return String(highestAccessId + 1);
+}
+
+async function findExistingAuthUserIdByEmail(supabase: any, email: string) {
+  const { data, error } = await supabase.auth.admin.listUsers();
+
+  if (error) {
+    throw new Error(error.message || "Unable to look up existing user.");
+  }
+
+  const existingUser = data.users.find(
+    (user: { id: string; email?: string | null }) =>
+      user.email?.toLowerCase() === email.toLowerCase()
+  );
+
+  return existingUser?.id ?? null;
+}
 
 export async function POST(request: Request) {
   try {
@@ -44,18 +87,21 @@ export async function POST(request: Request) {
 
     if (!body.email?.trim()) {
       return NextResponse.json(
-        { success: false, error: "Email is required for this test workflow." },
+        { success: false, error: "Email is required." },
         { status: 400 }
       );
     }
 
     const supabase = getSupabaseAdmin();
 
+    const normalizedEmail = body.email.trim().toLowerCase();
     const tempPassword = `Kapapala-${crypto.randomUUID()}!`;
+
+    let userId: string | null = null;
 
     const { data: authData, error: authError } =
       await supabase.auth.admin.createUser({
-        email: body.email.trim(),
+        email: normalizedEmail,
         password: tempPassword,
         email_confirm: true,
         user_metadata: {
@@ -64,17 +110,48 @@ export async function POST(request: Request) {
         },
       });
 
-    if (authError || !authData.user) {
+    if (authData.user) {
+      userId = authData.user.id;
+    }
+
+    if (authError) {
+      const alreadyRegistered =
+        authError.message.toLowerCase().includes("already") ||
+        authError.message.toLowerCase().includes("registered");
+
+      if (!alreadyRegistered) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: authError.message || "Unable to create auth user.",
+          },
+          { status: 500 }
+        );
+      }
+
+      userId = await findExistingAuthUserIdByEmail(supabase, normalizedEmail);
+
+      if (!userId) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "A user with this email already exists, but the matching auth account could not be found.",
+          },
+          { status: 500 }
+        );
+      }
+    }
+
+    if (!userId) {
       return NextResponse.json(
         {
           success: false,
-          error: authError?.message || "Unable to create auth user.",
+          error: "Unable to determine user ID for this account.",
         },
         { status: 500 }
       );
     }
-
-    const userId = authData.user.id;
 
     const { data: profile, error: profileError } = await (supabase as any)
       .from("profiles")
@@ -82,7 +159,7 @@ export async function POST(request: Request) {
         id: userId,
         first_name: body.firstName.trim(),
         last_name: body.lastName.trim(),
-        email: body.email.trim(),
+        email: normalizedEmail,
         phone: body.phone?.trim() || null,
         role: "public_user",
       })
@@ -99,31 +176,91 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: account, error: accountError } = await (supabase as any)
+    const { data: existingAccount, error: existingAccountError } = await (
+      supabase as any
+    )
       .from("access_accounts")
-      .insert({
-        profile_id: profile.id,
-        status: "pending",
-        account_type: "Public Access",
-        organization: body.organization?.trim() || null,
-        default_gate: body.defaultGate || null,
-        emergency_contact_name: body.emergencyContactName?.trim() || null,
-        emergency_contact_phone: body.emergencyContactPhone?.trim() || null,
-      })
-      .select("id, status, created_at")
-      .single();
+      .select("id, access_id, status, app_role, created_at")
+      .eq("profile_id", profile.id)
+      .maybeSingle();
 
-    if (accountError || !account) {
+    if (existingAccountError) {
       return NextResponse.json(
         {
           success: false,
-          error: accountError?.message || "Unable to create access account.",
+          error:
+            existingAccountError.message ||
+            "Unable to check for existing access account.",
         },
         { status: 500 }
       );
     }
 
-    if (body.vehicles?.length) {
+    let account = existingAccount;
+
+    if (!account) {
+      const nextAccessId = body.adminCreated ? await getNextAccessId(supabase) : null;
+
+      const { data: newAccount, error: accountError } = await (supabase as any)
+        .from("access_accounts")
+        .insert({
+          profile_id: profile.id,
+          access_id: nextAccessId,
+          status: body.adminCreated ? "active" : body.status || "pending",
+          app_role: "user",
+          account_type: "Public Access",
+          organization: body.organization?.trim() || null,
+          default_gate: body.defaultGate || null,
+          emergency_contact_name: body.emergencyContactName?.trim() || null,
+          emergency_contact_phone: body.emergencyContactPhone?.trim() || null,
+        })
+        .select("id, access_id, status, app_role, created_at")
+        .single();
+
+      if (accountError || !newAccount) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: accountError?.message || "Unable to create access account.",
+          },
+          { status: 500 }
+        );
+      }
+
+      account = newAccount;
+    } else if (body.adminCreated && !account.access_id) {
+      const nextAccessId = await getNextAccessId(supabase);
+
+      const { data: updatedAccount, error: updateAccountError } = await (
+        supabase as any
+      )
+        .from("access_accounts")
+        .update({
+          access_id: nextAccessId,
+          status: "active",
+          app_role: account.app_role || "user",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", account.id)
+        .select("id, access_id, status, app_role, created_at")
+        .single();
+
+      if (updateAccountError || !updatedAccount) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              updateAccountError?.message ||
+              "Unable to assign Access ID to existing account.",
+          },
+          { status: 500 }
+        );
+      }
+
+      account = updatedAccount;
+    }
+
+    if (body.vehicles?.length && account?.id) {
       const vehicles = body.vehicles
         .filter((vehicle) => vehicle.licensePlate?.trim())
         .map((vehicle, index) => ({
@@ -158,9 +295,15 @@ export async function POST(request: Request) {
 
     await (supabase as any).from("timeline_events").insert({
       access_account_id: account.id,
-      event_type: "access_account_submitted",
-      event_title: "Access Account Application Submitted",
-      event_body: `${body.firstName.trim()} ${body.lastName.trim()} submitted an access account application.`,
+      event_type: body.adminCreated
+        ? "access_account_admin_created"
+        : "access_account_submitted",
+      event_title: body.adminCreated
+        ? "Access Account Created by Administrator"
+        : "Access Account Application Submitted",
+      event_body: body.adminCreated
+        ? `${body.firstName.trim()} ${body.lastName.trim()} was added directly by an administrator.`
+        : `${body.firstName.trim()} ${body.lastName.trim()} submitted an access account application.`,
     });
 
     return NextResponse.json({
@@ -195,7 +338,9 @@ export async function GET() {
         `
         id,
         access_id,
+        profile_id,
         status,
+        app_role,
         account_type,
         organization,
         default_gate,
@@ -236,9 +381,15 @@ export async function GET() {
       );
     }
 
+    const accounts = (data ?? []).map((account: any) => ({
+      ...account,
+      app_role: account.app_role ?? "user",
+      vehicles: account.vehicles ?? [],
+    }));
+
     return NextResponse.json({
       success: true,
-      accounts: data ?? [],
+      accounts,
     });
   } catch (error) {
     return NextResponse.json(

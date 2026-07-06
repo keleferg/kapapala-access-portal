@@ -2,10 +2,14 @@
 
 import { useEffect, useState } from "react";
 
+export type AppRole = "user" | "admin" | "super_user";
+
 export type AccessAccount = {
   id: string;
   access_id: string | null;
+  profile_id?: string | null;
   status: string;
+  app_role: AppRole;
   account_type: string;
   organization: string | null;
   default_gate: string | null;
@@ -13,6 +17,8 @@ export type AccessAccount = {
   emergency_contact_phone: string | null;
   created_at: string;
   updated_at: string;
+  applicant_first_name?: string | null;
+  applicant_last_name?: string | null;
   applicant: {
     first_name: string;
     last_name: string;
@@ -53,7 +59,15 @@ export function useAccessAccounts() {
         throw new Error(result.error || "Unable to load access accounts.");
       }
 
-      setAccounts(result.accounts ?? []);
+      const normalizedAccounts: AccessAccount[] = (result.accounts ?? []).map(
+        (account: Partial<AccessAccount>) => ({
+          ...account,
+          app_role: account.app_role ?? "user",
+          vehicles: account.vehicles ?? [],
+        })
+      ) as AccessAccount[];
+
+      setAccounts(normalizedAccounts);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error.");
     } finally {

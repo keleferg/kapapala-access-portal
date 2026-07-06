@@ -19,28 +19,8 @@ export default function AdminPage() {
 
       <LiveActivityBar />
 
-      <div className="card-grid four">
-        <Card title="Account Requests">
-          <div className="big-value">4</div>
-          <StatusBadge label="Needs Review" tone="yellow" />
-        </Card>
-        <Card title="Daily Requests">
-          <div className="big-value">18</div>
-          <StatusBadge label="Today" tone="green" />
-        </Card>
-        <Card title="Approved Today">
-          <div className="big-value">14</div>
-          <StatusBadge label="SMS Sent" tone="green" />
-        </Card>
-        <Card title="Needs Attention">
-          <div className="big-value">3</div>
-          <StatusBadge label="Review" tone="red" />
-        </Card>
-      </div>
-
       <AdminOperationsTabs />
-
-      <SmsDeliveryLog />
+      
     </AppShell>
   );
 }

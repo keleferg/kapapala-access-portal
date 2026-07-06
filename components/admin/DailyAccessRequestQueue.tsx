@@ -8,6 +8,7 @@ import { getSupabaseClient } from "../../lib/supabaseClient";
 
 type RequestStatus = "pending" | "approved" | "denied" | string;
 type RequestTab = "pending" | "approved" | "denied";
+type DateFilterMode = "today" | "tomorrow" | "single" | "range";
 
 type DailyAccessRequest = {
   id: string;
@@ -33,7 +34,6 @@ type DailyAccessRequest = {
 };
 
 const HAWAII_TIME_ZONE = "Pacific/Honolulu";
-const DAILY_QUEUE_CUTOFF_HOUR = 22;
 
 const tabs: {
   key: RequestTab;
@@ -43,17 +43,20 @@ const tabs: {
   {
     key: "pending",
     label: "Pending",
-    emptyMessage: "There are no pending daily access requests.",
+    emptyMessage:
+      "There are no pending daily access requests for this date filter.",
   },
   {
     key: "approved",
     label: "Approved",
-    emptyMessage: "There are no approved daily access requests.",
+    emptyMessage:
+      "There are no approved daily access requests for this date filter.",
   },
   {
     key: "denied",
     label: "Denied",
-    emptyMessage: "There are no denied daily access requests.",
+    emptyMessage:
+      "There are no denied daily access requests for this date filter.",
   },
 ];
 
@@ -113,55 +116,20 @@ function formatStatus(status: RequestStatus) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function getHawaiiDateParts(date = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-US", {
+function getHawaiiDate(offsetDays = 0) {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+
+  return new Intl.DateTimeFormat("en-CA", {
     timeZone: HAWAII_TIME_ZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-    hour: "2-digit",
-    hour12: false,
-  }).formatToParts(date);
-
-  const getPart = (type: string) =>
-    parts.find((part) => part.type === type)?.value ?? "";
-
-  return {
-    year: getPart("year"),
-    month: getPart("month"),
-    day: getPart("day"),
-    hour: Number(getPart("hour")),
-  };
-}
-
-function getTodayDateKeyInHawaii() {
-  const { year, month, day } = getHawaiiDateParts();
-
-  return `${year}-${month}-${day}`;
-}
-
-function isAfterDailyCutoffInHawaii() {
-  const { hour } = getHawaiiDateParts();
-
-  return hour >= DAILY_QUEUE_CUTOFF_HOUR;
+  }).format(date);
 }
 
 function getRequestDateKey(requestDate: string) {
   return requestDate.slice(0, 10);
-}
-
-function shouldShowRequest(request: DailyAccessRequest) {
-  const requestDateKey = getRequestDateKey(request.request_date);
-  const todayDateKey = getTodayDateKeyInHawaii();
-
-  const isToday = requestDateKey === todayDateKey;
-  const afterCutoff = isAfterDailyCutoffInHawaii();
-
-  if (isToday && afterCutoff) {
-    return false;
-  }
-
-  return true;
 }
 
 function sortRequestsOldestToNewest(
@@ -182,50 +150,81 @@ function countByStatus(requests: DailyAccessRequest[], status: RequestTab) {
   return requests.filter((request) => request.status === status).length;
 }
 
+function getDateFilterLabel(
+  mode: DateFilterMode,
+  selectedDate: string,
+  rangeStartDate: string,
+  rangeEndDate: string
+) {
+  if (mode === "today") return `Today: ${formatRequestDate(getHawaiiDate(0))}`;
+
+  if (mode === "tomorrow") {
+    return `Tomorrow: ${formatRequestDate(getHawaiiDate(1))}`;
+  }
+
+  if (mode === "single" && selectedDate) {
+    return `Selected Date: ${formatRequestDate(selectedDate)}`;
+  }
+
+  if (mode === "range" && rangeStartDate && rangeEndDate) {
+    return `Date Range: ${formatRequestDate(
+      rangeStartDate
+    )} through ${formatRequestDate(rangeEndDate)}`;
+  }
+
+  if (mode === "single") return "Select a date";
+  return "Select a date range";
+}
+
 export default function DailyAccessRequestQueue() {
   const [requests, setRequests] = useState<DailyAccessRequest[]>([]);
   const [activeTab, setActiveTab] = useState<RequestTab>("pending");
+  const [dateFilterMode, setDateFilterMode] =
+    useState<DateFilterMode>("today");
+  const [selectedDate, setSelectedDate] = useState(getHawaiiDate(0));
+  const [rangeStartDate, setRangeStartDate] = useState(getHawaiiDate(0));
+  const [rangeEndDate, setRangeEndDate] = useState(getHawaiiDate(1));
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [currentTime, setCurrentTime] = useState(() => new Date());
 
   useEffect(() => {
-    void loadRequests();
+    void loadRequests({
+      mode: "today",
+      selectedDate: getHawaiiDate(0),
+      rangeStartDate: getHawaiiDate(0),
+      rangeEndDate: getHawaiiDate(1),
+    });
   }, []);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60_000);
-
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const visibleRequests = useMemo(() => {
-    // This keeps the queue recalculating every minute for the 10 PM cutoff.
-    void currentTime;
-
-    return sortRequestsOldestToNewest(
-      requests.filter((request) => shouldShowRequest(request))
-    );
-  }, [requests, currentTime]);
 
   const filteredRequests = useMemo(() => {
-    return visibleRequests.filter((request) => request.status === activeTab);
-  }, [visibleRequests, activeTab]);
+    return requests.filter((request) => request.status === activeTab);
+  }, [requests, activeTab]);
 
   const activeTabConfig = tabs.find((tab) => tab.key === activeTab);
 
-  async function loadRequests() {
+  async function loadRequests(
+    options?: Partial<{
+      mode: DateFilterMode;
+      selectedDate: string;
+      rangeStartDate: string;
+      rangeEndDate: string;
+    }>
+  ) {
+    const mode = options?.mode ?? dateFilterMode;
+    const singleDate = options?.selectedDate ?? selectedDate;
+    const startDate = options?.rangeStartDate ?? rangeStartDate;
+    const endDate = options?.rangeEndDate ?? rangeEndDate;
+
     setLoading(true);
     setErrorMessage(null);
 
     const supabase = getSupabaseClient();
 
-    const { data, error } = await (supabase as any)
+    let query = (supabase as any)
       .from("daily_access_requests")
-      .select(`
+      .select(
+        `
         id,
         request_date,
         purpose,
@@ -244,9 +243,49 @@ export default function DailyAccessRequestQueue() {
         gates (
           name
         )
-      `)
+      `
+      )
       .order("request_date", { ascending: true })
       .order("created_at", { ascending: true });
+
+    if (mode === "today") {
+      query = query.eq("request_date", getHawaiiDate(0));
+    }
+
+    if (mode === "tomorrow") {
+      query = query.eq("request_date", getHawaiiDate(1));
+    }
+
+    if (mode === "single") {
+      if (!singleDate) {
+        setRequests([]);
+        setErrorMessage("Please select a date.");
+        setLoading(false);
+        return;
+      }
+
+      query = query.eq("request_date", singleDate);
+    }
+
+    if (mode === "range") {
+      if (!startDate || !endDate) {
+        setRequests([]);
+        setErrorMessage("Please select a start date and end date.");
+        setLoading(false);
+        return;
+      }
+
+      if (startDate > endDate) {
+        setRequests([]);
+        setErrorMessage("The start date must be before the end date.");
+        setLoading(false);
+        return;
+      }
+
+      query = query.gte("request_date", startDate).lte("request_date", endDate);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Unable to load daily access requests:", error);
@@ -256,7 +295,9 @@ export default function DailyAccessRequestQueue() {
       return;
     }
 
-    setRequests(sortRequestsOldestToNewest((data ?? []) as DailyAccessRequest[]));
+    setRequests(
+      sortRequestsOldestToNewest((data ?? []) as DailyAccessRequest[])
+    );
     setLoading(false);
   }
 
@@ -317,34 +358,160 @@ export default function DailyAccessRequestQueue() {
     }
   }
 
-  if (loading) {
-    return (
-      <Card title="Loading Requests...">
-        <p className="text-sm text-gray-600">Please wait...</p>
-      </Card>
-    );
+  function activateTodayFilter() {
+    const today = getHawaiiDate(0);
+
+    setDateFilterMode("today");
+    setSelectedDate(today);
+
+    void loadRequests({
+      mode: "today",
+      selectedDate: today,
+    });
   }
 
-  if (errorMessage) {
-    return (
-      <Card title="Unable to Load Requests">
-        <div className="space-y-4">
-          <p className="text-sm text-red-700">{errorMessage}</p>
+  function activateTomorrowFilter() {
+    const tomorrow = getHawaiiDate(1);
+
+    setDateFilterMode("tomorrow");
+    setSelectedDate(tomorrow);
+
+    void loadRequests({
+      mode: "tomorrow",
+      selectedDate: tomorrow,
+    });
+  }
+
+  function applySingleDateFilter() {
+    setDateFilterMode("single");
+
+    void loadRequests({
+      mode: "single",
+      selectedDate,
+    });
+  }
+
+  function applyDateRangeFilter() {
+    setDateFilterMode("range");
+
+    void loadRequests({
+      mode: "range",
+      rangeStartDate,
+      rangeEndDate,
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card title="Request Date Filter">
+        <div className="filter-chip-row">
+          <button
+            className={`filter-chip ${
+              dateFilterMode === "today" ? "active" : ""
+            }`}
+            type="button"
+            onClick={activateTodayFilter}
+          >
+            Today
+          </button>
+
+          <button
+            className={`filter-chip ${
+              dateFilterMode === "tomorrow" ? "active" : ""
+            }`}
+            type="button"
+            onClick={activateTomorrowFilter}
+          >
+            Tomorrow
+          </button>
+
+          <button
+            className={`filter-chip ${
+              dateFilterMode === "single" ? "active" : ""
+            }`}
+            type="button"
+            onClick={() => setDateFilterMode("single")}
+          >
+            Select Date
+          </button>
+
+          <button
+            className={`filter-chip ${
+              dateFilterMode === "range" ? "active" : ""
+            }`}
+            type="button"
+            onClick={() => setDateFilterMode("range")}
+          >
+            Date Range
+          </button>
 
           <button
             className="button secondary"
             type="button"
             onClick={() => void loadRequests()}
+            disabled={loading}
           >
-            Try Again
+            Refresh
           </button>
         </div>
-      </Card>
-    );
-  }
 
-  return (
-    <div className="space-y-4">
+        {dateFilterMode === "single" && (
+          <div className="daily-request-date-controls">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(event) => setSelectedDate(event.target.value)}
+            />
+
+            <button
+              className="button primary"
+              type="button"
+              onClick={applySingleDateFilter}
+              disabled={loading}
+            >
+              Apply Date
+            </button>
+          </div>
+        )}
+
+        {dateFilterMode === "range" && (
+          <div className="daily-request-date-controls">
+            <input
+              type="date"
+              value={rangeStartDate}
+              onChange={(event) => setRangeStartDate(event.target.value)}
+            />
+
+            <input
+              type="date"
+              value={rangeEndDate}
+              onChange={(event) => setRangeEndDate(event.target.value)}
+            />
+
+            <button
+              className="button primary"
+              type="button"
+              onClick={applyDateRangeFilter}
+              disabled={loading}
+            >
+              Apply Range
+            </button>
+          </div>
+        )}
+
+        <p className="muted-text" style={{ marginTop: 12 }}>
+          Showing requests for{" "}
+          <strong>
+            {getDateFilterLabel(
+              dateFilterMode,
+              selectedDate,
+              rangeStartDate,
+              rangeEndDate
+            )}
+          </strong>
+        </p>
+      </Card>
+
       <Card>
         <div
           className="request-tabs"
@@ -353,7 +520,7 @@ export default function DailyAccessRequestQueue() {
         >
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key;
-            const count = countByStatus(visibleRequests, tab.key);
+            const count = countByStatus(requests, tab.key);
 
             return (
               <button
@@ -372,110 +539,126 @@ export default function DailyAccessRequestQueue() {
         </div>
       </Card>
 
-      {isAfterDailyCutoffInHawaii() && (
-        <Card>
-          <p className="text-sm text-gray-600">
-            Today&apos;s daily access requests have been removed from this queue
-            because it is after 10:00 PM Hawaiʻi time.
-          </p>
+      {loading ? (
+        <Card title="Loading Requests...">
+          <p className="muted-text">Please wait...</p>
         </Card>
-      )}
+      ) : errorMessage ? (
+        <Card title="Unable to Load Requests">
+          <div className="space-y-4">
+            <p className="text-sm text-red-700">{errorMessage}</p>
 
-      {filteredRequests.length === 0 ? (
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() => void loadRequests()}
+            >
+              Try Again
+            </button>
+          </div>
+        </Card>
+      ) : filteredRequests.length === 0 ? (
         <Card title={`${activeTabConfig?.label ?? "Requests"} Requests`}>
-          <p className="text-sm text-gray-600">
+          <p className="muted-text">
             {activeTabConfig?.emptyMessage ??
               "There are no requests in this tab."}
           </p>
         </Card>
       ) : (
-        <div className="review-queue">
-          {filteredRequests.map((request) => {
-            const partySize = getPartySize(request);
-            const isUpdating = updatingId === request.id;
-            const isPending = request.status === "pending";
+        <Card title={`${activeTabConfig?.label ?? "Requests"} Requests`}>
+          <div className="daily-request-table-wrap">
+            <div className="daily-request-table">
+              <div className="daily-request-header">
+                <span>Requester</span>
+                <span>Access ID</span>
+                <span>Gate</span>
+                <span>Date</span>
+                <span>Purpose</span>
+                <span>Party</span>
+                <span>Vehicle</span>
+                <span>Status / Actions</span>
+              </div>
 
-            return (
-              <Card key={request.id}>
-                <div className="review-card">
-                  <div className="review-main">
-                    <div className="review-avatar" aria-hidden="true">
-                      🚙
+              {filteredRequests.map((request) => {
+                const partySize = getPartySize(request);
+                const isUpdating = updatingId === request.id;
+                const isPending = request.status === "pending";
+
+                return (
+                  <div className="daily-request-row" key={request.id}>
+                    <strong>{getRequesterName(request)}</strong>
+
+                    <span>{getAccessId(request)}</span>
+
+                    <span>{getGateName(request)}</span>
+
+                    <span>
+                      {formatRequestDate(
+                        getRequestDateKey(request.request_date)
+                      )}
+                    </span>
+
+                    <span className="truncate">{getPurpose(request)}</span>
+
+                    <span className="party-cell">{partySize}</span>
+
+                    <span className="truncate">
+                      {request.vehicle_summary || "No vehicle listed"}
+                    </span>
+
+                    <div className="daily-request-status-cell">
+                      <StatusBadge
+                        label={formatStatus(request.status)}
+                        tone={statusTone(request.status)}
+                      />
+
+                      <Link
+                        className="button secondary"
+                        href={`/admin/requests/${request.id}`}
+                      >
+                        View
+                      </Link>
+
+                      {isPending && (
+                        <>
+                          <button
+                            className="button primary"
+                            type="button"
+                            onClick={() =>
+                              void updateStatus(request.id, "approved")
+                            }
+                            disabled={isUpdating}
+                          >
+                            {isUpdating ? "Updating..." : "Approve"}
+                          </button>
+
+                          <button
+                            className="button danger"
+                            type="button"
+                            onClick={() =>
+                              void updateStatus(request.id, "denied")
+                            }
+                            disabled={isUpdating}
+                          >
+                            {isUpdating ? "Updating..." : "Deny"}
+                          </button>
+                        </>
+                      )}
                     </div>
 
-                    <div>
-                      <h3>{getRequesterName(request)}</h3>
-
-                      <p>Access ID: {getAccessId(request)}</p>
-
-                      <p>
-                        {getGateName(request)} • {getPurpose(request)}
-                      </p>
-
-                      <div className="review-meta-row">
-                        <span>{formatRequestDate(request.request_date)}</span>
-
-                        <span>
-                          {partySize} Person{partySize !== 1 ? "s" : ""}
-                        </span>
-
-                        <span>
-                          {request.vehicle_summary || "No vehicle listed"}
-                        </span>
-                      </div>
-
-                      {request.status === "pending" &&
-                        request.pending_reason && (
-                          <div className="pending-reason">
-                            <strong>Pending reason:</strong>{" "}
-                            {request.pending_reason}
-                          </div>
-                        )}
-                    </div>
+                    {request.status === "pending" &&
+                      request.pending_reason && (
+                        <div className="daily-request-pending-reason">
+                          <strong>Pending reason:</strong>{" "}
+                          {request.pending_reason}
+                        </div>
+                      )}
                   </div>
-
-                  <div className="review-actions">
-                    <StatusBadge
-                      label={formatStatus(request.status)}
-                      tone={statusTone(request.status)}
-                    />
-
-                    <Link
-                      className="button secondary"
-                      href={`/admin/requests/${request.id}`}
-                    >
-                      View
-                    </Link>
-
-                    {isPending && (
-                      <>
-                        <button
-                          className="button primary"
-                          type="button"
-                          onClick={() =>
-                            void updateStatus(request.id, "approved")
-                          }
-                          disabled={isUpdating}
-                        >
-                          {isUpdating ? "Updating..." : "Approve"}
-                        </button>
-
-                        <button
-                          className="button danger"
-                          type="button"
-                          onClick={() => void updateStatus(request.id, "denied")}
-                          disabled={isUpdating}
-                        >
-                          {isUpdating ? "Updating..." : "Deny"}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
+                );
+              })}
+            </div>
+          </div>
+        </Card>
       )}
     </div>
   );
