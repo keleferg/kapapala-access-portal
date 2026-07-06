@@ -187,6 +187,7 @@ Kapāpala Ranch Operations`;
     return {
       sent: false,
       error: "RESEND_API_KEY is missing.",
+      result: null,
     };
   }
 
@@ -212,6 +213,7 @@ Kapāpala Ranch Operations`;
     return {
       sent: false,
       error: errorText,
+      result: null,
     };
   }
 
@@ -274,6 +276,10 @@ export async function POST(_request: NextRequest, context: RouteContext) {
     const email =
       existingAccount.applicant_email || existingAccount.email || null;
 
+    const welcomeEmailAlreadySent = Boolean(
+      existingAccount.welcome_email_sent_at
+    );
+
     let authUserId: string | null = null;
     let passwordSetupLink: string | null = null;
     let emailSent = false;
@@ -324,15 +330,42 @@ export async function POST(_request: NextRequest, context: RouteContext) {
     }
 
     if (email) {
-      const welcomeEmailResult = await sendWelcomeEmail({
-        email,
-        firstName,
-        accessId,
-        passwordSetupLink,
-      });
+      if (welcomeEmailAlreadySent) {
+        console.log("Welcome email already sent. Skipping duplicate send.", {
+          accountId,
+          welcomeEmailSentAt: existingAccount.welcome_email_sent_at,
+        });
 
-      emailSent = welcomeEmailResult.sent;
-      emailError = welcomeEmailResult.error;
+        emailSent = false;
+        emailError = "Welcome email was already sent previously.";
+      } else {
+        const welcomeEmailResult = await sendWelcomeEmail({
+          email,
+          firstName,
+          accessId,
+          passwordSetupLink,
+        });
+
+        emailSent = welcomeEmailResult.sent;
+        emailError = welcomeEmailResult.error;
+
+        const { error: emailTrackingError } = await supabase
+          .from("access_accounts")
+          .update({
+            welcome_email_sent_at: welcomeEmailResult.sent
+              ? new Date().toISOString()
+              : null,
+            welcome_email_last_error: welcomeEmailResult.error,
+          })
+          .eq("id", accountId);
+
+        if (emailTrackingError) {
+          console.warn(
+            "Unable to update welcome email tracking fields:",
+            emailTrackingError
+          );
+        }
+      }
     }
 
     return NextResponse.json({
@@ -342,6 +375,7 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       emailPrepared: Boolean(email),
       emailSent,
       emailError,
+      welcomeEmailAlreadySent,
       passwordSetupLink,
     });
   } catch (error) {
