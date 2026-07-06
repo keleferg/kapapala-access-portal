@@ -37,6 +37,8 @@ type AccessAccount = {
   emergency_contact_phone?: string | null;
   applicant_first_name?: string | null;
   applicant_last_name?: string | null;
+  applicant_email?: string | null;
+  email?: string | null;
   applicant?: Applicant | null;
   vehicles?: Vehicle[] | null;
 };
@@ -56,6 +58,10 @@ type NewUserForm = {
   vehicleMake: string;
   vehicleModel: string;
   vehicleColor: string;
+};
+
+type AccessAccountManagementProps = {
+  accountId?: string;
 };
 
 const emptyNewUserForm: NewUserForm = {
@@ -120,6 +126,15 @@ function getAccountName(account: AccessAccount) {
   return `${firstName} ${lastName}`.trim() || "Unknown Applicant";
 }
 
+function getAccountEmail(account: AccessAccount) {
+  return (
+    account.applicant?.email ||
+    account.applicant_email ||
+    account.email ||
+    ""
+  );
+}
+
 function getVehicleSummary(account: AccessAccount) {
   if (!account.vehicles?.length) return "No vehicles";
 
@@ -131,10 +146,6 @@ function getVehicleSummary(account: AccessAccount) {
     })
     .join(", ");
 }
-
-type AccessAccountManagementProps = {
-  accountId?: string;
-};
 
 export default function AccessAccountManagement({
   accountId,
@@ -161,6 +172,9 @@ export default function AccessAccountManagement({
   const [addingUser, setAddingUser] = useState(false);
   const [newUser, setNewUser] = useState<NewUserForm>(emptyNewUserForm);
 
+  const [activatingAccountId, setActivatingAccountId] = useState<string | null>(
+    null
+  );
   const [deletingAccountId, setDeletingAccountId] = useState<string | null>(
     null
   );
@@ -170,7 +184,9 @@ export default function AccessAccountManagement({
   const [updatingRoleAccountId, setUpdatingRoleAccountId] = useState<
     string | null
   >(null);
+
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
   const filteredAccounts = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -192,6 +208,10 @@ export default function AccessAccountManagement({
         account.status,
         account.app_role,
         account.organization,
+        account.applicant_first_name,
+        account.applicant_last_name,
+        account.applicant_email,
+        account.email,
         applicant?.first_name,
         applicant?.last_name,
         applicant?.email,
@@ -211,11 +231,11 @@ export default function AccessAccountManagement({
   }, [accounts, search, statusFilter]);
 
   const selected =
-  accounts.find((account) => account.id === accountId) ||
-  filteredAccounts.find((account) => account.id === selectedAccountId) ||
-  filteredAccounts[0] ||
-  accounts[0] ||
-  null;
+    accounts.find((account) => account.id === accountId) ||
+    filteredAccounts.find((account) => account.id === selectedAccountId) ||
+    filteredAccounts[0] ||
+    accounts[0] ||
+    null;
 
   const activeCount = accounts.filter(
     (account) => account.status === "active"
@@ -246,6 +266,7 @@ export default function AccessAccountManagement({
 
   async function addUserAccount() {
     setActionError(null);
+    setActionSuccess(null);
 
     if (!newUser.firstName.trim() || !newUser.lastName.trim()) {
       setActionError("First name and last name are required.");
@@ -313,6 +334,7 @@ export default function AccessAccountManagement({
 
       setShowAddUserForm(false);
       setNewUser(emptyNewUserForm);
+      setActionSuccess("User account created.");
       await refresh();
     } catch (error) {
       setActionError(
@@ -325,6 +347,65 @@ export default function AccessAccountManagement({
     }
   }
 
+  async function activateAccessAccount(account: AccessAccount) {
+    const accountName = getAccountName(account);
+    const accessId = account.access_id || "Pending";
+    const email = getAccountEmail(account) || "No email on file";
+
+    setActionError(null);
+    setActionSuccess(null);
+
+    const confirmed = window.confirm(
+      `Approve and activate this access account?\n\nName: ${accountName}\nAccess ID: ${accessId}\nEmail: ${email}\n\nThis will activate the account and send the welcome email if an email address is on file.`
+    );
+
+    if (!confirmed) return;
+
+    setActivatingAccountId(account.id);
+
+    try {
+      const response = await fetch(`/api/access-accounts/${account.id}/activate`, {
+        method: "POST",
+      });
+
+      const result = await response.json();
+
+      console.log("Activation result:", result);
+
+      if (!response.ok || !result.success) {
+        setActionError(result.error || "Unable to activate access account.");
+        console.error("Activation failed:", result);
+        return;
+      }
+
+      if (!result.emailPrepared) {
+        setActionSuccess("Account activated.");
+        setActionError(
+          "Account activated, but no welcome email was prepared because this account does not have an email address on file."
+        );
+      } else if (!result.emailSent) {
+        setActionSuccess("Account activated.");
+        setActionError(
+          result.emailError
+            ? `Account activated, but email was not sent: ${result.emailError}`
+            : "Account activated, but email was not sent. Check Resend configuration and Netlify environment variables."
+        );
+      } else {
+        setActionSuccess("Account activated and welcome email sent.");
+      }
+
+      await refresh();
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Unable to activate access account."
+      );
+    } finally {
+      setActivatingAccountId(null);
+    }
+  }
+
   async function updateAccountRole(account: AccessAccount, role: AppRole) {
     const currentRole = account.app_role || "user";
 
@@ -334,6 +415,7 @@ export default function AccessAccountManagement({
     const accessId = account.access_id || "Pending";
 
     setActionError(null);
+    setActionSuccess(null);
 
     const confirmed = window.confirm(
       `Change account permission?\n\nName: ${accountName}\nAccess ID: ${accessId}\n\nCurrent permission: ${formatRole(
@@ -364,6 +446,7 @@ export default function AccessAccountManagement({
         return;
       }
 
+      setActionSuccess("Account permission updated.");
       await refresh();
     } catch (error) {
       setActionError(
@@ -381,6 +464,7 @@ export default function AccessAccountManagement({
     const accessId = account.access_id || "Pending";
 
     setActionError(null);
+    setActionSuccess(null);
 
     const confirmed = window.confirm(
       `Revoke this access account?\n\nName: ${accountName}\nAccess ID: ${accessId}\n\nThis will preserve account history but prevent the account from being treated as active.`
@@ -407,6 +491,7 @@ export default function AccessAccountManagement({
         return;
       }
 
+      setActionSuccess("Account revoked.");
       await refresh();
     } catch (error) {
       setActionError(
@@ -424,6 +509,7 @@ export default function AccessAccountManagement({
     const accessId = account.access_id || "Pending";
 
     setActionError(null);
+    setActionSuccess(null);
 
     const confirmed = window.confirm(
       `Delete this access account?\n\nName: ${accountName}\nAccess ID: ${accessId}\n\nThis is permanent and cannot be undone.`
@@ -476,6 +562,7 @@ export default function AccessAccountManagement({
         return;
       }
 
+      setActionSuccess("Account deleted.");
       await refresh();
     } catch (error) {
       setActionError(
@@ -541,6 +628,7 @@ export default function AccessAccountManagement({
               type="button"
               onClick={() => {
                 setActionError(null);
+                setActionSuccess(null);
                 setShowAddUserForm(true);
               }}
             >
@@ -704,6 +792,7 @@ export default function AccessAccountManagement({
                   onClick={() => {
                     setShowAddUserForm(false);
                     setActionError(null);
+                    setActionSuccess(null);
                   }}
                 >
                   Cancel
@@ -728,6 +817,13 @@ export default function AccessAccountManagement({
               )
             )}
           </div>
+
+          {actionSuccess && (
+            <div className="success-callout">
+              <strong>Action completed</strong>
+              <p>{actionSuccess}</p>
+            </div>
+          )}
 
           {actionError && (
             <div className="error-callout">
@@ -889,7 +985,7 @@ export default function AccessAccountManagement({
 
                   <div>
                     <span>Email</span>
-                    <strong>{selected.applicant?.email || "—"}</strong>
+                    <strong>{getAccountEmail(selected) || "—"}</strong>
                   </div>
 
                   <div>
@@ -922,6 +1018,19 @@ export default function AccessAccountManagement({
 
               <Card title="Quick Actions">
                 <div className="quick-action-button-grid">
+                  {selected.status !== "active" && (
+                    <button
+                      className="button primary"
+                      type="button"
+                      disabled={activatingAccountId === selected.id}
+                      onClick={() => void activateAccessAccount(selected)}
+                    >
+                      {activatingAccountId === selected.id
+                        ? "Activating..."
+                        : "Approve / Activate"}
+                    </button>
+                  )}
+
                   <Link
                     className="button secondary"
                     href={`/admin/access-accounts/${selected.id}`}
@@ -957,7 +1066,8 @@ export default function AccessAccountManagement({
                     type="button"
                     disabled={
                       revokingAccountId === selected.id ||
-                      deletingAccountId === selected.id
+                      deletingAccountId === selected.id ||
+                      activatingAccountId === selected.id
                     }
                     onClick={() => void revokeAccessAccount(selected)}
                   >
@@ -971,7 +1081,8 @@ export default function AccessAccountManagement({
                     type="button"
                     disabled={
                       deletingAccountId === selected.id ||
-                      revokingAccountId === selected.id
+                      revokingAccountId === selected.id ||
+                      activatingAccountId === selected.id
                     }
                     onClick={() => void deleteAccessAccount(selected)}
                   >
@@ -982,8 +1093,9 @@ export default function AccessAccountManagement({
                 </div>
 
                 <p className="muted-text" style={{ marginTop: 12 }}>
-                  Revoke preserves history. Delete is permanent and requires the
-                  current admin password.
+                  Approve / Activate sends the welcome email. Revoke preserves
+                  history. Delete is permanent and requires the current admin
+                  password.
                 </p>
               </Card>
             </>
