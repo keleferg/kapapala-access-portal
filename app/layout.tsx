@@ -1,15 +1,24 @@
 import type { Metadata } from "next";
+import ExistingAccountSetupGuard from "../components/auth/ExistingAccountSetupGuard";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Kapāpala Forest Reserve Access Portal",
-  description: "Kapapala Forest Reserve Access Management System for Kapāpala Ranch",
+  description:
+    "Kapāpala Forest Reserve Access Management System for Kapāpala Ranch",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <ExistingAccountSetupGuard />
+        {children}
+      </body>
     </html>
   );
 }

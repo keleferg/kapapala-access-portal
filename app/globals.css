@@ -4721,3 +4721,142 @@ tbody tr:hover,
   justify-content: center;
   white-space: nowrap;
 }
+
+/* Access Account Wizard — Rules */
+
+.rule-list.access-rule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.rule-list.access-rule-list .access-rule-item {
+  display: grid;
+  grid-template-columns: 24px 38px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 14px;
+
+  width: 100%;
+  min-width: 0;
+  padding: 18px;
+
+  border: 1px solid #d9dee5;
+  border-radius: 14px;
+  background: #ffffff;
+
+  cursor: pointer;
+  box-sizing: border-box;
+
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.rule-list.access-rule-list .access-rule-item:hover {
+  border-color: #aeb9c4;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.rule-list.access-rule-list
+  .access-rule-item
+  input[type="checkbox"] {
+  grid-column: 1;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  margin: 0;
+  padding: 0;
+
+  align-self: center;
+  justify-self: center;
+  cursor: pointer;
+}
+
+.rule-list.access-rule-list .access-rule-number {
+  grid-column: 2;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  margin: 0;
+
+  border-radius: 999px;
+  background: #eef3f7;
+  color: #334155;
+
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+
+  align-self: center;
+  justify-self: center;
+}
+
+.rule-list.access-rule-list .access-rule-text {
+  grid-column: 3;
+
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+
+  line-height: 1.55;
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.rule-list.access-rule-list .access-rule-text strong {
+  display: block;
+  width: 100%;
+  margin: 0 0 4px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.rule-list.access-rule-list
+  .access-rule-item:has(input[type="checkbox"]:checked) {
+  border-color: #4d8468;
+  background: #f4faf6;
+}
+
+.rule-list.access-rule-list
+  .access-rule-item:has(input[type="checkbox"]:checked)
+  .access-rule-number {
+  background: #4d8468;
+  color: #ffffff;
+}
+
+@media (max-width: 600px) {
+  .rule-list.access-rule-list .access-rule-item {
+    grid-template-columns: 22px 32px minmax(0, 1fr);
+    column-gap: 10px;
+    padding: 14px;
+  }
+
+  .rule-list.access-rule-list
+    .access-rule-item
+    input[type="checkbox"] {
+    width: 19px;
+    height: 19px;
+    min-width: 19px;
+  }
+
+  .rule-list.access-rule-list .access-rule-number {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    font-size: 0.82rem;
+  }
+
+  .rule-list.access-rule-list .access-rule-text {
+    font-size: 0.95rem;
+  }
+}

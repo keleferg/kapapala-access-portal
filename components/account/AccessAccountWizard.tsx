@@ -26,11 +26,17 @@ type FormState = {
   emergencyContactPhone: string;
   primaryPurpose: string;
   defaultGate: "Wood Valley" | "Honanui" | "ʻĀinapō";
-  closeGatesAccepted: boolean;
-  stayOnRoadsAccepted: boolean;
-  noShareCombosAccepted: boolean;
-  packOutAccepted: boolean;
-  certifyAccepted: boolean;
+
+  dailyRequestAccepted: boolean;
+  signInOutAccepted: boolean;
+  sameGateAccepted: boolean;
+  markedRoadsAccepted: boolean;
+  dogsSecuredAccepted: boolean;
+  interiorGatesAccepted: boolean;
+  parkingAccepted: boolean;
+  noHuntingAccepted: boolean;
+  closingTimeAccepted: boolean;
+  misuseAccepted: boolean;
 };
 
 const initialForm: FormState = {
@@ -45,11 +51,17 @@ const initialForm: FormState = {
   emergencyContactPhone: "",
   primaryPurpose: "",
   defaultGate: "Wood Valley",
-  closeGatesAccepted: false,
-  stayOnRoadsAccepted: false,
-  noShareCombosAccepted: false,
-  packOutAccepted: false,
-  certifyAccepted: false,
+
+  dailyRequestAccepted: false,
+  signInOutAccepted: false,
+  sameGateAccepted: false,
+  markedRoadsAccepted: false,
+  dogsSecuredAccepted: false,
+  interiorGatesAccepted: false,
+  parkingAccepted: false,
+  noHuntingAccepted: false,
+  closingTimeAccepted: false,
+  misuseAccepted: false,
 };
 
 export default function AccessAccountWizard() {
@@ -87,11 +99,29 @@ export default function AccessAccountWizard() {
     void loadOptionalUser();
   }, []);
 
-  function updateField<K extends keyof FormState>(field: K, value: FormState[K]) {
+  function updateField<K extends keyof FormState>(
+    field: K,
+    value: FormState[K]
+  ) {
     setForm((current) => ({
       ...current,
       [field]: value,
     }));
+  }
+
+  function areAllRulesAccepted(): boolean {
+    return Boolean(
+      form.dailyRequestAccepted &&
+        form.signInOutAccepted &&
+        form.sameGateAccepted &&
+        form.markedRoadsAccepted &&
+        form.dogsSecuredAccepted &&
+        form.interiorGatesAccepted &&
+        form.parkingAccepted &&
+        form.noHuntingAccepted &&
+        form.closingTimeAccepted &&
+        form.misuseAccepted
+    );
   }
 
   function isStepComplete(stepIndex: number): boolean {
@@ -118,13 +148,7 @@ export default function AccessAccountWizard() {
         );
 
       case 4:
-        return Boolean(
-          form.closeGatesAccepted &&
-            form.stayOnRoadsAccepted &&
-            form.noShareCombosAccepted &&
-            form.packOutAccepted &&
-            form.certifyAccepted
-        );
+        return areAllRulesAccepted();
 
       case 5:
         return areRequiredStepsComplete();
@@ -156,7 +180,7 @@ export default function AccessAccountWizard() {
         return "Please complete the emergency contact and primary purpose fields.";
 
       case 4:
-        return "Please review and check all access rules before continuing.";
+        return "Please read and acknowledge all ten access rules before continuing.";
 
       default:
         return "Please complete the required fields before continuing.";
@@ -177,7 +201,18 @@ export default function AccessAccountWizard() {
 
   function previousStep() {
     setSubmitError("");
+    setSubmitMessage("");
     setStep((current) => Math.max(current - 1, 0));
+  }
+
+  function goToStep(stepIndex: number) {
+    if (isSubmitting) {
+      return;
+    }
+
+    setSubmitError("");
+    setSubmitMessage("");
+    setStep(stepIndex);
   }
 
   async function submitApplication() {
@@ -235,11 +270,11 @@ export default function AccessAccountWizard() {
           defaultGate: form.defaultGate,
           emergencyContactName: form.emergencyContactName.trim(),
           emergencyContactPhone: form.emergencyContactPhone.trim(),
-          vehicles: form.licensePlate
+          vehicles: form.licensePlate.trim()
             ? [
                 {
-                  label: form.vehicleDescription || "Vehicle",
-                  licensePlate: form.licensePlate,
+                  label: form.vehicleDescription.trim() || "Vehicle",
+                  licensePlate: form.licensePlate.trim(),
                   state: "HI",
                   make: "",
                   model: "",
@@ -248,6 +283,18 @@ export default function AccessAccountWizard() {
                 },
               ]
             : [],
+          rulesAccepted: {
+            dailyRequest: form.dailyRequestAccepted,
+            signInOut: form.signInOutAccepted,
+            sameGate: form.sameGateAccepted,
+            markedRoads: form.markedRoadsAccepted,
+            dogsSecured: form.dogsSecuredAccepted,
+            interiorGates: form.interiorGatesAccepted,
+            parking: form.parkingAccepted,
+            noHunting: form.noHuntingAccepted,
+            closingTime: form.closingTimeAccepted,
+            misuse: form.misuseAccepted,
+          },
         }),
       });
 
@@ -264,7 +311,9 @@ export default function AccessAccountWizard() {
       setIdFile(null);
       setStep(5);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Unknown error.");
+      setSubmitError(
+        error instanceof Error ? error.message : "An unknown error occurred."
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -283,7 +332,7 @@ export default function AccessAccountWizard() {
                 className={`wizard-step ${index === step ? "active" : ""} ${
                   complete ? "complete" : ""
                 }`}
-                onClick={() => setStep(index)}
+                onClick={() => goToStep(index)}
                 type="button"
                 disabled={isSubmitting}
               >
@@ -297,9 +346,14 @@ export default function AccessAccountWizard() {
 
       <Card title={steps[step]}>
         {submitError && <div className="error-callout">{submitError}</div>}
-        {submitMessage && <div className="success-callout">{submitMessage}</div>}
 
-        {step === 0 && <AboutYouStep form={form} updateField={updateField} />}
+        {submitMessage && (
+          <div className="success-callout">{submitMessage}</div>
+        )}
+
+        {step === 0 && (
+          <AboutYouStep form={form} updateField={updateField} />
+        )}
 
         {step === 1 && (
           <IdentificationStep
@@ -310,13 +364,17 @@ export default function AccessAccountWizard() {
           />
         )}
 
-        {step === 2 && <VehiclesStep form={form} updateField={updateField} />}
+        {step === 2 && (
+          <VehiclesStep form={form} updateField={updateField} />
+        )}
 
         {step === 3 && (
           <EmergencyContactStep form={form} updateField={updateField} />
         )}
 
-        {step === 4 && <RulesStep form={form} updateField={updateField} />}
+        {step === 4 && (
+          <RulesStep form={form} updateField={updateField} />
+        )}
 
         {step === 5 && <ReviewStep form={form} idFile={idFile} />}
 
@@ -336,6 +394,12 @@ export default function AccessAccountWizard() {
               onClick={nextStep}
               type="button"
               disabled={isSubmitting || !isStepComplete(step)}
+              aria-disabled={isSubmitting || !isStepComplete(step)}
+              title={
+                step === 4 && !areAllRulesAccepted()
+                  ? "Please acknowledge all ten access rules to continue."
+                  : undefined
+              }
             >
               Continue
             </button>
@@ -360,7 +424,10 @@ function AboutYouStep({
   updateField,
 }: {
   form: FormState;
-  updateField: <K extends keyof FormState>(field: K, value: FormState[K]) => void;
+  updateField: <K extends keyof FormState>(
+    field: K,
+    value: FormState[K]
+  ) => void;
 }) {
   return (
     <div className="mobile-form-stack">
@@ -375,7 +442,9 @@ function AboutYouStep({
           <input
             placeholder="First name"
             value={form.firstName}
-            onChange={(event) => updateField("firstName", event.target.value)}
+            onChange={(event) =>
+              updateField("firstName", event.target.value)
+            }
             required
           />
         </label>
@@ -385,7 +454,9 @@ function AboutYouStep({
           <input
             placeholder="Last name"
             value={form.lastName}
-            onChange={(event) => updateField("lastName", event.target.value)}
+            onChange={(event) =>
+              updateField("lastName", event.target.value)
+            }
             required
           />
         </label>
@@ -404,6 +475,7 @@ function AboutYouStep({
         <label>
           Mobile Phone
           <input
+            type="tel"
             placeholder="(808) 555-1234"
             value={form.phone}
             onChange={(event) => updateField("phone", event.target.value)}
@@ -422,7 +494,10 @@ function IdentificationStep({
   setIdFile,
 }: {
   form: FormState;
-  updateField: <K extends keyof FormState>(field: K, value: FormState[K]) => void;
+  updateField: <K extends keyof FormState>(
+    field: K,
+    value: FormState[K]
+  ) => void;
   idFile: File | null;
   setIdFile: (file: File | null) => void;
 }) {
@@ -441,7 +516,9 @@ function IdentificationStep({
         <input
           type="file"
           accept="image/*,.pdf"
-          onChange={(event) => setIdFile(event.target.files?.[0] ?? null)}
+          onChange={(event) =>
+            setIdFile(event.target.files?.[0] ?? null)
+          }
           required
         />
       </label>
@@ -456,7 +533,9 @@ function IdentificationStep({
         ID Type
         <select
           value={form.idType}
-          onChange={(event) => updateField("idType", event.target.value)}
+          onChange={(event) =>
+            updateField("idType", event.target.value)
+          }
           required
         >
           <option value="" disabled>
@@ -465,7 +544,9 @@ function IdentificationStep({
           <option value="Driver License">Driver License</option>
           <option value="State ID">State ID</option>
           <option value="Passport">Passport</option>
-          <option value="Other Government ID">Other Government ID</option>
+          <option value="Other Government ID">
+            Other Government ID
+          </option>
         </select>
       </label>
     </div>
@@ -477,22 +558,30 @@ function VehiclesStep({
   updateField,
 }: {
   form: FormState;
-  updateField: <K extends keyof FormState>(field: K, value: FormState[K]) => void;
+  updateField: <K extends keyof FormState>(
+    field: K,
+    value: FormState[K]
+  ) => void;
 }) {
   return (
     <div className="mobile-form-stack">
       <p className="muted-text">
-        Frequent users can save vehicles so daily access requests are faster.
+        Frequent users can save a vehicle so daily access requests are faster.
+        Adding a vehicle during account registration is optional.
       </p>
 
       <div className="saved-item-list">
         <div>
           <strong>
             {form.vehicleDescription ||
-              "Vehicle not entered. Entering a vehicle here is optional, but you will be required to enter a vehicle for each daily access request you submit. To make your submission quicker, you can save your frequently used vehicle information here so you don't have to enter it for each request submitted."}
+              "No vehicle has been entered. You may add one now or provide vehicle information with each daily access request."}
           </strong>
+
           <span>{form.licensePlate || "License plate not entered"}</span>
-          {form.licensePlate && <StatusBadge label="Primary" tone="green" />}
+
+          {form.licensePlate && (
+            <StatusBadge label="Primary" tone="green" />
+          )}
         </div>
       </div>
 
@@ -514,7 +603,10 @@ function VehiclesStep({
             placeholder="ABC 123"
             value={form.licensePlate}
             onChange={(event) =>
-              updateField("licensePlate", event.target.value.toUpperCase())
+              updateField(
+                "licensePlate",
+                event.target.value.toUpperCase()
+              )
             }
           />
         </label>
@@ -528,7 +620,10 @@ function EmergencyContactStep({
   updateField,
 }: {
   form: FormState;
-  updateField: <K extends keyof FormState>(field: K, value: FormState[K]) => void;
+  updateField: <K extends keyof FormState>(
+    field: K,
+    value: FormState[K]
+  ) => void;
 }) {
   return (
     <div className="mobile-form-stack">
@@ -539,7 +634,10 @@ function EmergencyContactStep({
             placeholder="Contact name"
             value={form.emergencyContactName}
             onChange={(event) =>
-              updateField("emergencyContactName", event.target.value)
+              updateField(
+                "emergencyContactName",
+                event.target.value
+              )
             }
             required
           />
@@ -548,10 +646,14 @@ function EmergencyContactStep({
         <label>
           Emergency Contact Phone
           <input
+            type="tel"
             placeholder="(808) 555-1234"
             value={form.emergencyContactPhone}
             onChange={(event) =>
-              updateField("emergencyContactPhone", event.target.value)
+              updateField(
+                "emergencyContactPhone",
+                event.target.value
+              )
             }
             required
           />
@@ -562,7 +664,9 @@ function EmergencyContactStep({
         Primary Purpose of Access
         <select
           value={form.primaryPurpose}
-          onChange={(event) => updateField("primaryPurpose", event.target.value)}
+          onChange={(event) =>
+            updateField("primaryPurpose", event.target.value)
+          }
           required
         >
           <option value="" disabled>
@@ -570,7 +674,9 @@ function EmergencyContactStep({
           </option>
           <option value="Hunting">Hunting</option>
           <option value="Hiking">Hiking</option>
-          <option value="Forest Reserve Access">Forest Reserve Access</option>
+          <option value="Forest Reserve Access">
+            Forest Reserve Access
+          </option>
           <option value="Cultural Access">Cultural Access</option>
           <option value="Research">Research</option>
           <option value="Ranch Business">Ranch Business</option>
@@ -585,7 +691,10 @@ function EmergencyContactStep({
           onChange={(event) =>
             updateField(
               "defaultGate",
-              event.target.value as "Wood Valley" | "Honanui" | "ʻĀinapō"
+              event.target.value as
+                | "Wood Valley"
+                | "Honanui"
+                | "ʻĀinapō"
             )
           }
           required
@@ -604,74 +713,262 @@ function RulesStep({
   updateField,
 }: {
   form: FormState;
-  updateField: <K extends keyof FormState>(field: K, value: FormState[K]) => void;
+  updateField: <K extends keyof FormState>(
+    field: K,
+    value: FormState[K]
+  ) => void;
 }) {
+  const allRulesAccepted =
+    form.dailyRequestAccepted &&
+    form.signInOutAccepted &&
+    form.sameGateAccepted &&
+    form.markedRoadsAccepted &&
+    form.dogsSecuredAccepted &&
+    form.interiorGatesAccepted &&
+    form.parkingAccepted &&
+    form.noHuntingAccepted &&
+    form.closingTimeAccepted &&
+    form.misuseAccepted;
+
   return (
     <div className="mobile-form-stack">
-      <div className="rule-list">
-        <label>
+      <div className="info-callout">
+        <strong>Access Rules and Conditions</strong>
+        <p>
+          Please read and acknowledge each rule. All ten checkboxes must be
+          selected before you can continue.
+        </p>
+      </div>
+
+      <div className="rule-list access-rule-list">
+        <label className="access-rule-item">
           <input
             type="checkbox"
-            checked={form.closeGatesAccepted}
+            checked={form.dailyRequestAccepted}
             onChange={(event) =>
-              updateField("closeGatesAccepted", event.target.checked)
+              updateField(
+                "dailyRequestAccepted",
+                event.target.checked
+              )
             }
             required
           />
-          <span>I agree to close and secure all gates after passing through.</span>
+
+          <span className="access-rule-number">1</span>
+
+          <span className="access-rule-text">
+            <strong>Daily access requests</strong>
+            I understand that I must submit a separate access request for each
+            day access is desired. Requests may be submitted up to 90 days in
+            advance. Gate codes will be available through the Kapāpala Forest
+            Access App only when I have an approved access request for that
+            day, the current time is within the authorized access hours for the
+            selected gate, and I am within the immediate vicinity of the gate.
+          </span>
         </label>
 
-        <label>
+        <label className="access-rule-item">
           <input
             type="checkbox"
-            checked={form.stayOnRoadsAccepted}
+            checked={form.signInOutAccepted}
             onChange={(event) =>
-              updateField("stayOnRoadsAccepted", event.target.checked)
+              updateField("signInOutAccepted", event.target.checked)
             }
             required
           />
-          <span>I agree to stay on approved roads and access areas.</span>
+
+          <span className="access-rule-number">2</span>
+
+          <span className="access-rule-text">
+            <strong>Sign in and sign out</strong>
+            I understand that everyone in my party must sign in and sign out
+            at the registration box located at the Kapāpala Ranch gate.
+          </span>
         </label>
 
-        <label>
+        <label className="access-rule-item">
           <input
             type="checkbox"
-            checked={form.noShareCombosAccepted}
+            checked={form.sameGateAccepted}
             onChange={(event) =>
-              updateField("noShareCombosAccepted", event.target.checked)
+              updateField("sameGateAccepted", event.target.checked)
             }
             required
           />
-          <span>I agree not to share gate combinations with others.</span>
+
+          <span className="access-rule-number">3</span>
+
+          <span className="access-rule-text">
+            <strong>Enter and exit through the same gate</strong>
+            I understand that each access gate leads to a different area of
+            the Forest Reserve and that the access roads do not connect. Entry
+            and exit must be through the same gate.
+          </span>
         </label>
 
-        <label>
+        <label className="access-rule-item">
           <input
             type="checkbox"
-            checked={form.packOutAccepted}
+            checked={form.markedRoadsAccepted}
             onChange={(event) =>
-              updateField("packOutAccepted", event.target.checked)
+              updateField(
+                "markedRoadsAccepted",
+                event.target.checked
+              )
             }
             required
           />
-          <span>I agree to pack out everything I bring in.</span>
+
+          <span className="access-rule-number">4</span>
+
+          <span className="access-rule-text">
+            <strong>Remain on marked access roads</strong>
+            I understand that my party and I must remain on marked access roads
+            at all times while traveling through Kapāpala Ranch.
+          </span>
         </label>
 
-        <label>
+        <label className="access-rule-item">
           <input
             type="checkbox"
-            checked={form.certifyAccepted}
+            checked={form.dogsSecuredAccepted}
             onChange={(event) =>
-              updateField("certifyAccepted", event.target.checked)
+              updateField(
+                "dogsSecuredAccepted",
+                event.target.checked
+              )
             }
             required
           />
-          <span>
-            I certify that the information provided is accurate and I agree to
-            the Kapāpala Ranch public access rules.
+
+          <span className="access-rule-number">5</span>
+
+          <span className="access-rule-text">
+            <strong>Dogs must remain secured</strong>
+            I understand that all dogs must remain secured inside the vehicle
+            until reaching the Forest Reserve.
+          </span>
+        </label>
+
+        <label className="access-rule-item">
+          <input
+            type="checkbox"
+            checked={form.interiorGatesAccepted}
+            onChange={(event) =>
+              updateField(
+                "interiorGatesAccepted",
+                event.target.checked
+              )
+            }
+            required
+          />
+
+          <span className="access-rule-number">6</span>
+
+          <span className="access-rule-text">
+            <strong>Interior gates</strong>
+            I understand that interior gates within Kapāpala Ranch must be
+            left in the position indicated by Kapāpala Ranch. Gates found open
+            must be left open, and gates found closed must be closed after
+            passing through.
+          </span>
+        </label>
+
+        <label className="access-rule-item">
+          <input
+            type="checkbox"
+            checked={form.parkingAccepted}
+            onChange={(event) =>
+              updateField("parkingAccepted", event.target.checked)
+            }
+            required
+          />
+
+          <span className="access-rule-number">7</span>
+
+          <span className="access-rule-text">
+            <strong>Vehicle parking</strong>
+            I understand that vehicles may only be parked within the Forest
+            Reserve unless specific permission to park elsewhere has been
+            granted by Kapāpala Ranch.
+          </span>
+        </label>
+
+        <label className="access-rule-item">
+          <input
+            type="checkbox"
+            checked={form.noHuntingAccepted}
+            onChange={(event) =>
+              updateField("noHuntingAccepted", event.target.checked)
+            }
+            required
+          />
+
+          <span className="access-rule-number">8</span>
+
+          <span className="access-rule-text">
+            <strong>No hunting within Kapāpala Ranch</strong>
+            I understand that hunting is prohibited within Kapāpala Ranch.
+          </span>
+        </label>
+
+        <label className="access-rule-item">
+          <input
+            type="checkbox"
+            checked={form.closingTimeAccepted}
+            onChange={(event) =>
+              updateField(
+                "closingTimeAccepted",
+                event.target.checked
+              )
+            }
+            required
+          />
+
+          <span className="access-rule-number">9</span>
+
+          <span className="access-rule-text">
+            <strong>Gate closing times and overnight stays</strong>
+            I understand that my party and I must exit through the designated
+            gate before its scheduled closing time. Gate closing times vary,
+            and gate combinations may be changed at or immediately after
+            closing. Overnight stays within Kapāpala Ranch are prohibited.
+          </span>
+        </label>
+
+        <label className="access-rule-item">
+          <input
+            type="checkbox"
+            checked={form.misuseAccepted}
+            onChange={(event) =>
+              updateField("misuseAccepted", event.target.checked)
+            }
+            required
+          />
+
+          <span className="access-rule-number">10</span>
+
+          <span className="access-rule-text">
+            <strong>Misuse of access privileges</strong>
+            I understand that intentionally violating access rules, misusing
+            access privileges, or sharing gate combinations with unauthorized
+            persons may result in the suspension or revocation of my access
+            privileges.
           </span>
         </label>
       </div>
+
+      {!allRulesAccepted && (
+        <p className="muted-text" role="status">
+          Please acknowledge all ten access rules to continue.
+        </p>
+      )}
+
+      {allRulesAccepted && (
+        <div className="success-callout">
+          All access rules have been acknowledged.
+        </div>
+      )}
     </div>
   );
 }
@@ -687,6 +984,7 @@ function ReviewStep({
     <div className="mobile-form-stack">
       <div className="approval-preview">
         <div className="approval-icon">🪪</div>
+
         <div>
           <h2>Ready for Review</h2>
           <p>
@@ -741,8 +1039,18 @@ function ReviewStep({
         </div>
 
         <div className="summary-item">
+          <span>Primary Purpose</span>
+          <strong>{form.primaryPurpose || "—"}</strong>
+        </div>
+
+        <div className="summary-item">
           <span>Preferred Gate</span>
           <strong>{form.defaultGate}</strong>
+        </div>
+
+        <div className="summary-item">
+          <span>Access Rules</span>
+          <strong>All 10 Acknowledged</strong>
         </div>
 
         <div className="summary-item">
