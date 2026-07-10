@@ -4,6 +4,15 @@ import Card from "../ui/Card";
 import StatusBadge from "../ui/StatusBadge";
 import { useCurrentConditions } from "../../lib/hooks/useCurrentConditions";
 
+type GateAdvisoryFields = {
+  name?: string | null;
+  public_note?: string | null;
+  publicNote?: string | null;
+  road_condition?: string | null;
+  roadCondition?: string | null;
+  notes?: string | null;
+};
+
 function gateTone(status: string): "green" | "yellow" | "red" {
   switch (status.toLowerCase()) {
     case "open":
@@ -31,6 +40,42 @@ function gateStatusClass(status: string) {
     default:
       return "gate-status-unknown";
   }
+}
+
+function normalizeGateName(name?: string | null) {
+  return (name || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function getGateAdvisory(gate: GateAdvisoryFields) {
+  const savedAdvisory =
+    gate.public_note?.trim() ||
+    gate.publicNote?.trim() ||
+    gate.road_condition?.trim() ||
+    gate.roadCondition?.trim() ||
+    gate.notes?.trim();
+
+  if (savedAdvisory) {
+    return savedAdvisory;
+  }
+
+  const normalizedName = normalizeGateName(gate.name);
+
+  if (normalizedName.includes("wood valley")) {
+    return "4WD Required, ATV, UTV";
+  }
+
+  if (normalizedName.includes("honanui")) {
+    return "4WD Required, ATV, UTV";
+  }
+
+  if (normalizedName.includes("ainapo")) {
+    return "4WD Required, ATV, UTV. Hiking/Bicycles/Horses permitted.";
+  }
+
+  return "No current road advisory posted.";
 }
 
 export default function GateStatusSection() {
@@ -67,7 +112,7 @@ export default function GateStatusSection() {
               <StatusBadge label={gate.status} tone={gateTone(gate.status)} />
             </div>
 
-            <p>{conditions.roadNotes || "No current road advisory posted."}</p>
+            <p>{getGateAdvisory(gate)}</p>
           </div>
         ))}
       </div>

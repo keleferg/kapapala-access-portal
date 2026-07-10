@@ -7,6 +7,7 @@ import Card from "../ui/Card";
 import StatusBadge from "../ui/StatusBadge";
 import { useAccessAccounts } from "../../lib/hooks/useAccessAccounts";
 import { useAccountTimeline } from "../../lib/hooks/useAccountTimeline";
+import { useCurrentUser } from "../../lib/hooks/useCurrentUser";
 import { getSupabaseClient } from "../../lib/supabaseClient";
 import VehicleManager from "./account/VehicleManager";
 import DocumentManager from "./account/DocumentManager";
@@ -26,6 +27,17 @@ function formatDateTime(value: string) {
   return new Date(value).toLocaleString();
 }
 
+function formatIdDate(value: string | null | undefined) {
+  if (!value) return "—";
+  return value;
+}
+
+function formatReviewFlag(flag: string) {
+  return flag
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 type EditProfileForm = {
   firstName: string;
   lastName: string;
@@ -39,12 +51,46 @@ type EditProfileForm = {
   emergencyContactPhone: string;
 };
 
+type IdDocumentReview = {
+  access_account_id: string;
+  id_review_status: string | null;
+  id_review_flags: string[] | null;
+  review_id: string | null;
+  parser_status: string | null;
+  parsed_date_of_birth: string | null;
+  parsed_expiration_date: string | null;
+  parsed_document_type: string | null;
+  parsed_issuing_authority: string | null;
+  age_at_review: number | null;
+  is_under_18: boolean | null;
+  is_expired: boolean | null;
+  is_government_id_uncertain: boolean | null;
+  is_low_confidence: boolean | null;
+  needs_manual_review: boolean | null;
+  warning_summary: string | null;
+  processed_at: string | null;
+};
+
 export default function AccessAccountProfile({
   accountId,
 }: {
   accountId: string;
 }) {
   const router = useRouter();
+
+  const currentUserResult = useCurrentUser() as any;
+  const currentUser =
+    currentUserResult?.user ||
+    currentUserResult?.currentUser ||
+    currentUserResult?.profile ||
+    null;
+
+  const currentUserRole = currentUser?.role || currentUser?.app_role || "";
+
+  const canEditAccountProfile =
+    currentUserRole === "admin" ||
+    currentUserRole === "super_user" ||
+    currentUserRole === "super_admin";
 
   const { accounts, loading, error, refresh } = useAccessAccounts();
 
@@ -59,6 +105,11 @@ export default function AccessAccountProfile({
 
   const [notes, setNotes] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
+
+  const [idReview, setIdReview] = useState<IdDocumentReview | null>(null);
+  const [idReviewLoading, setIdReviewLoading] = useState(false);
+  const [idReviewError, setIdReviewError] = useState("");
+  const [idReviewExpanded, setIdReviewExpanded] = useState(false);
 
   const [editingProfile, setEditingProfile] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -82,6 +133,54 @@ export default function AccessAccountProfile({
   });
 
   useEffect(() => {
+    let isMounted = true;
+
+    async function loadIdReview() {
+      setIdReviewLoading(true);
+      setIdReviewError("");
+
+      try {
+        const supabase = getSupabaseClient() as any;
+
+        const { data, error } = await supabase.rpc(
+          "get_admin_access_account_id_review",
+          {
+            p_access_account_id: accountId,
+          }
+        );
+
+        if (error) {
+          throw error;
+        }
+
+        const review = Array.isArray(data) ? data[0] || null : data || null;
+
+        if (isMounted) {
+          setIdReview(review);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setIdReviewError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load ID document review."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIdReviewLoading(false);
+        }
+      }
+    }
+
+    loadIdReview();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [accountId]);
+
+  useEffect(() => {
     if (!account) return;
 
     setNotes(account.internal_notes || "");
@@ -101,6 +200,12 @@ export default function AccessAccountProfile({
       emergencyContactPhone: account.emergency_contact_phone || "",
     });
   }, [account]);
+
+  useEffect(() => {
+    if (!canEditAccountProfile && editingProfile) {
+      setEditingProfile(false);
+    }
+  }, [canEditAccountProfile, editingProfile]);
 
   function updateEditForm(field: keyof EditProfileForm, value: string) {
     setEditForm((current) => ({
@@ -131,6 +236,11 @@ export default function AccessAccountProfile({
   }
 
   async function saveProfile() {
+    if (!canEditAccountProfile) {
+      alert("Only admins and super users can edit account profiles.");
+      return;
+    }
+
     setSavingProfile(true);
 
     try {
@@ -252,9 +362,32 @@ export default function AccessAccountProfile({
   }
 
   async function activateAccount() {
-    const confirmed = window.confirm(
-      "Activate this access account? This will assign an Access ID and send the applicant a confirmation email."
-    );
+    let activationMessage =
+      "Activate this access account? This will assign an Access ID and send the applicant a confirmation email.";
+
+    const hasIdReviewWarning =
+      idReview?.id_review_status === "warning" ||
+      idReview?.id_review_status === "manual_review" ||
+      idReview?.needs_manual_review === true;
+
+    if (hasIdReviewWarning) {
+      const flags =
+        idReview?.id_review_flags && idReview.id_review_flags.length > 0
+          ? idReview.id_review_flags.map(formatReviewFlag).join(", ")
+          : "ID review warning";
+
+      activationMessage =
+        `This account has ID document review warnings.\n\n` +
+        `Flags: ${flags}\n\n` +
+        `${
+          idReview?.warning_summary ||
+          "This ID may require closer manual review."
+        }\n\n` +
+        `Admin may still approve this account after manual review.\n\n` +
+        `Do you still want to activate this access account?`;
+    }
+
+    const confirmed = window.confirm(activationMessage);
 
     if (!confirmed) return;
 
@@ -437,17 +570,35 @@ export default function AccessAccountProfile({
     );
   }
 
-  const firstName = account.applicant?.first_name || account.applicant_first_name || "";
-  const lastName = account.applicant?.last_name || account.applicant_last_name || "";
+  const firstName =
+    account.applicant?.first_name || account.applicant_first_name || "";
+  const lastName =
+    account.applicant?.last_name || account.applicant_last_name || "";
   const email = account.applicant?.email || account.applicant_email || "";
   const phone = account.applicant?.phone || account.applicant_phone || "";
 
   const name = `${firstName} ${lastName}`.trim() || "Unknown Applicant";
-  const displayName =
-    `${editForm.firstName} ${editForm.lastName}`.trim() || name;
+  const displayName = `${editForm.firstName} ${editForm.lastName}`.trim() || name;
 
   const accountStatus = account.status || "pending";
   const hasAccessId = Boolean(account.access_id);
+
+  const hasVisibleIdReviewWarning =
+    idReview?.id_review_status === "warning" ||
+    idReview?.id_review_status === "manual_review" ||
+    idReview?.needs_manual_review === true;
+
+  const idReviewFlagsText =
+    idReview?.id_review_flags && idReview.id_review_flags.length > 0
+      ? idReview.id_review_flags.map(formatReviewFlag).join(", ")
+      : "";
+
+  const idReviewSummaryText = hasVisibleIdReviewWarning
+    ? idReview?.warning_summary ||
+      "This ID document may require closer review before approval."
+    : idReview?.id_review_status === "clear"
+      ? "No automated ID warnings were found."
+      : "ID has not been automatically reviewed yet.";
 
   return (
     <>
@@ -499,37 +650,39 @@ export default function AccessAccountProfile({
           </Card>
 
           <Card title="Applicant Information">
-            <div className="profile-card-actions">
-              {!editingProfile ? (
-                <button
-                  className="button secondary"
-                  type="button"
-                  onClick={() => setEditingProfile(true)}
-                >
-                  Edit Account Profile
-                </button>
-              ) : (
-                <>
-                  <button
-                    className="button primary"
-                    type="button"
-                    onClick={saveProfile}
-                    disabled={savingProfile}
-                  >
-                    {savingProfile ? "Saving..." : "Save Changes"}
-                  </button>
-
+            {canEditAccountProfile && (
+              <div className="profile-card-actions">
+                {!editingProfile ? (
                   <button
                     className="button secondary"
                     type="button"
-                    onClick={cancelEditProfile}
-                    disabled={savingProfile}
+                    onClick={() => setEditingProfile(true)}
                   >
-                    Cancel
+                    Edit Account Profile
                   </button>
-                </>
-              )}
-            </div>
+                ) : (
+                  <>
+                    <button
+                      className="button primary"
+                      type="button"
+                      onClick={saveProfile}
+                      disabled={savingProfile}
+                    >
+                      {savingProfile ? "Saving..." : "Save Changes"}
+                    </button>
+
+                    <button
+                      className="button secondary"
+                      type="button"
+                      onClick={cancelEditProfile}
+                      disabled={savingProfile}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
 
             {!editingProfile ? (
               <div className="profile-detail-list">
@@ -721,10 +874,305 @@ export default function AccessAccountProfile({
           />
         </div>
 
-        <DocumentManager
-          accountId={accountId}
-          refreshTimeline={refreshTimeline}
-        />
+        <div className="account-profile-column">
+          <DocumentManager
+            accountId={accountId}
+            refreshTimeline={refreshTimeline}
+          />
+
+          <section
+            style={{
+              marginBottom: 16,
+              borderRadius: 18,
+              border: hasVisibleIdReviewWarning
+                ? "2px solid #f59e0b"
+                : "1px solid rgba(148, 163, 184, 0.35)",
+              background: hasVisibleIdReviewWarning ? "#fff7ed" : "white",
+              boxShadow: hasVisibleIdReviewWarning
+                ? "0 12px 30px rgba(245, 158, 11, 0.22)"
+                : "0 8px 24px rgba(15, 23, 42, 0.08)",
+              overflow: "hidden",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setIdReviewExpanded((current) => !current)}
+              aria-expanded={idReviewExpanded}
+              style={{
+                width: "100%",
+                border: "none",
+                background: hasVisibleIdReviewWarning ? "#fed7aa" : "transparent",
+                padding: "18px 20px",
+                cursor: "pointer",
+                textAlign: "left",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 16,
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    marginBottom: 4,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <strong style={{ fontSize: 18 }}>ID Document Review</strong>
+
+                  {hasVisibleIdReviewWarning && (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        borderRadius: 999,
+                        background: "#ea580c",
+                        color: "white",
+                        padding: "4px 10px",
+                        fontSize: 12,
+                        fontWeight: 800,
+                        letterSpacing: 0.3,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Warning
+                    </span>
+                  )}
+
+                  {!hasVisibleIdReviewWarning &&
+                    idReview?.id_review_status === "clear" && (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          borderRadius: 999,
+                          background: "#16a34a",
+                          color: "white",
+                          padding: "4px 10px",
+                          fontSize: 12,
+                          fontWeight: 800,
+                          letterSpacing: 0.3,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Clear
+                      </span>
+                    )}
+                </div>
+
+                <p
+                  style={{
+                    margin: 0,
+                    color: hasVisibleIdReviewWarning ? "#7c2d12" : "#64748b",
+                    fontWeight: hasVisibleIdReviewWarning ? 700 : 400,
+                  }}
+                >
+                  {idReviewLoading
+                    ? "Loading ID document review..."
+                    : idReviewError
+                      ? "Unable to load ID review."
+                      : idReviewSummaryText}
+                </p>
+
+                {hasVisibleIdReviewWarning && idReviewFlagsText && (
+                  <p
+                    style={{
+                      margin: "6px 0 0",
+                      color: "#9a3412",
+                      fontSize: 13,
+                      fontWeight: 700,
+                    }}
+                  >
+                    Flags: {idReviewFlagsText}
+                  </p>
+                )}
+
+                <p
+                  style={{
+                    margin: "8px 0 0",
+                    color: hasVisibleIdReviewWarning ? "#9a3412" : "#64748b",
+                    fontSize: 13,
+                    fontWeight: hasVisibleIdReviewWarning ? 700 : 500,
+                  }}
+                >
+                  {idReviewExpanded
+                    ? "Click to collapse ID review details."
+                    : "Click to expand ID review details."}
+                </p>
+              </div>
+
+              <span
+                aria-hidden="true"
+                style={{
+                  color: hasVisibleIdReviewWarning ? "#9a3412" : "#64748b",
+                  fontSize: 22,
+                  fontWeight: 800,
+                  transform: idReviewExpanded
+                    ? "rotate(180deg)"
+                    : "rotate(0deg)",
+                  transition: "transform 160ms ease",
+                }}
+              >
+                ▾
+              </span>
+            </button>
+
+            {idReviewExpanded && (
+              <div style={{ padding: "18px 20px 20px" }}>
+                {idReviewLoading && (
+                  <p className="muted-text">Loading ID document review...</p>
+                )}
+
+                {idReviewError && (
+                  <div className="error-callout">
+                    <strong>Unable to load ID review</strong>
+                    <p>{idReviewError}</p>
+                  </div>
+                )}
+
+                {!idReviewLoading && !idReviewError && !idReview && (
+                  <p className="muted-text">
+                    ID has not been automatically reviewed yet.
+                  </p>
+                )}
+
+                {!idReviewLoading &&
+                  !idReviewError &&
+                  idReview?.id_review_status === "not_checked" && (
+                    <p className="muted-text">
+                      ID has not been automatically reviewed yet.
+                    </p>
+                  )}
+
+                {!idReviewLoading &&
+                  !idReviewError &&
+                  idReview?.id_review_status === "clear" && (
+                    <div className="profile-detail-list">
+                      <div>
+                        <span>ID Review Status</span>
+                        <strong>Clear</strong>
+                      </div>
+
+                      <div>
+                        <span>Summary</span>
+                        <strong>No automated ID warnings were found.</strong>
+                      </div>
+
+                      <div>
+                        <span>Parser Status</span>
+                        <strong>{idReview.parser_status || "—"}</strong>
+                      </div>
+
+                      <div>
+                        <span>Processed At</span>
+                        <strong>
+                          {idReview.processed_at
+                            ? formatDateTime(idReview.processed_at)
+                            : "—"}
+                        </strong>
+                      </div>
+                    </div>
+                  )}
+
+                {!idReviewLoading &&
+                  !idReviewError &&
+                  idReview &&
+                  idReview.id_review_status !== "not_checked" &&
+                  idReview.id_review_status !== "clear" && (
+                    <div
+                      style={{
+                        borderRadius: 14,
+                        background: "#ffedd5",
+                        border: "1px solid #fb923c",
+                        padding: 16,
+                      }}
+                    >
+                      <strong style={{ color: "#7c2d12" }}>
+                        ID Review Warning
+                      </strong>
+
+                      <p style={{ color: "#7c2d12" }}>
+                        {idReview.warning_summary ||
+                          "This ID document may require closer review before approval."}
+                      </p>
+
+                      <div
+                        className="profile-detail-list"
+                        style={{ marginTop: 12 }}
+                      >
+                        {idReview.id_review_flags &&
+                          idReview.id_review_flags.length > 0 && (
+                            <div>
+                              <span>Flags</span>
+                              <strong>
+                                {idReview.id_review_flags
+                                  .map(formatReviewFlag)
+                                  .join(", ")}
+                              </strong>
+                            </div>
+                          )}
+
+                        <div>
+                          <span>Date of Birth</span>
+                          <strong>
+                            {formatIdDate(idReview.parsed_date_of_birth)}
+                          </strong>
+                        </div>
+
+                        <div>
+                          <span>Age at Review</span>
+                          <strong>{idReview.age_at_review ?? "—"}</strong>
+                        </div>
+
+                        <div>
+                          <span>Expiration Date</span>
+                          <strong>
+                            {formatIdDate(idReview.parsed_expiration_date)}
+                          </strong>
+                        </div>
+
+                        <div>
+                          <span>Document Type</span>
+                          <strong>
+                            {idReview.parsed_document_type || "—"}
+                          </strong>
+                        </div>
+
+                        <div>
+                          <span>Issuing Authority</span>
+                          <strong>
+                            {idReview.parsed_issuing_authority || "—"}
+                          </strong>
+                        </div>
+
+                        <div>
+                          <span>Parser Status</span>
+                          <strong>{idReview.parser_status || "—"}</strong>
+                        </div>
+
+                        <div>
+                          <span>Processed At</span>
+                          <strong>
+                            {idReview.processed_at
+                              ? formatDateTime(idReview.processed_at)
+                              : "—"}
+                          </strong>
+                        </div>
+                      </div>
+
+                      <p className="muted-text" style={{ marginTop: 12 }}>
+                        Admin may still approve this account after manual
+                        review.
+                      </p>
+                    </div>
+                  )}
+              </div>
+            )}
+          </section>
+        </div>
 
         <div className="account-profile-column">
           <Card title="Quick Actions">
@@ -778,10 +1226,6 @@ export default function AccessAccountProfile({
 
               <button className="button secondary" type="button">
                 Send SMS
-              </button>
-
-              <button className="button secondary" type="button">
-                Print Access Card
               </button>
 
               <button

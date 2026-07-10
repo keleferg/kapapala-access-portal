@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import Card from "../ui/Card";
 import StatusBadge from "../ui/StatusBadge";
 import { getSupabaseClient } from "../../lib/supabaseClient";
-import Link from "next/link";
 
 type Gate = {
   id: string;
@@ -32,15 +31,51 @@ type AccessAccount = {
   vehicles: Vehicle[];
 };
 
-const purposes = [
-  "Hiking",
-  "Cabin",
-  "Mauna Loa",
-  "Hunting",
-  "Recreation",
-  "Cultural Gathering",
-  "Photography",
-  "Other",
+type PurposeOption = {
+  value: string;
+  label: string;
+  ainapoOnly?: boolean;
+  requiresExitDate?: boolean;
+  requiresDlnrPermit?: boolean;
+  requiresNpsReservation?: boolean;
+};
+
+const PURPOSE_OPTIONS: PurposeOption[] = [
+  {
+    value: "Access Forest Reserve",
+    label: "Access Forest Reserve",
+  },
+  {
+    value: "Mauna Loa / National Park Access",
+    label: "Mauna Loa / National Park Access",
+    ainapoOnly: true,
+    requiresExitDate: true,
+    requiresNpsReservation: true,
+  },
+  {
+    value: "Hiking",
+    label: "Hiking",
+    ainapoOnly: true,
+  },
+  {
+    value: "Cultural Gathering",
+    label: "Cultural Gathering",
+  },
+  {
+    value: "Research",
+    label: "Research",
+  },
+  {
+    value: "Ainapo Cabin",
+    label: "Ainapo Cabin",
+    ainapoOnly: true,
+    requiresExitDate: true,
+    requiresDlnrPermit: true,
+  },
+  {
+    value: "Other",
+    label: "Other",
+  },
 ];
 
 function addDays(date: Date, days: number) {
@@ -66,6 +101,21 @@ function gateTone(status: string): "green" | "yellow" | "red" {
   if (status === "open") return "green";
   if (status === "restricted") return "yellow";
   return "red";
+}
+
+function isAinapoGate(gateName?: string | null) {
+  if (!gateName) return false;
+
+  const normalized = gateName
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  return normalized.includes("ainapo");
+}
+
+function isValidDlnrPermitNumber(value: string) {
+  return /^\d{4}-\d{5}$/.test(value.trim());
 }
 
 function buildVehicleSummary(
@@ -113,16 +163,72 @@ export default function DailyAccessRequestWizard() {
   );
 
   const [gateId, setGateId] = useState("");
-  const [purpose, setPurpose] = useState("Hiking");
+  const [purpose, setPurpose] = useState("");
   const [otherPurpose, setOtherPurpose] = useState("");
+  const [exitDate, setExitDate] = useState("");
+  const [dlnrPermitNumber, setDlnrPermitNumber] = useState("");
+  const [npsReservationNumber, setNpsReservationNumber] = useState("");
   const [persons, setPersons] = useState(1);
   const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>([]);
   const [additionalVehicles, setAdditionalVehicles] = useState("");
-  const [permitNumber, setPermitNumber] = useState("");
+
+  const selectedGate = useMemo(
+    () => gates.find((gate) => gate.id === gateId),
+    [gates, gateId]
+  );
+
+  const selectedGateIsAinapo = isAinapoGate(selectedGate?.name);
+
+  const visiblePurposeOptions = useMemo(() => {
+    return PURPOSE_OPTIONS.filter((option) => {
+      if (option.ainapoOnly && !selectedGateIsAinapo) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [selectedGateIsAinapo]);
+
+  const selectedPurposeOption = useMemo(
+    () => PURPOSE_OPTIONS.find((option) => option.value === purpose),
+    [purpose]
+  );
 
   useEffect(() => {
     setRequestDate(toDateInputValue(earliestDate));
   }, [earliestDate]);
+
+  useEffect(() => {
+    const stillAllowed = visiblePurposeOptions.some(
+      (option) => option.value === purpose
+    );
+
+    if (purpose && !stillAllowed) {
+      setPurpose("");
+      setOtherPurpose("");
+      setExitDate("");
+      setDlnrPermitNumber("");
+      setNpsReservationNumber("");
+    }
+  }, [purpose, visiblePurposeOptions]);
+
+  useEffect(() => {
+    if (purpose !== "Other") {
+      setOtherPurpose("");
+    }
+
+    if (!selectedPurposeOption?.requiresExitDate) {
+      setExitDate("");
+    }
+
+    if (!selectedPurposeOption?.requiresDlnrPermit) {
+      setDlnrPermitNumber("");
+    }
+
+    if (!selectedPurposeOption?.requiresNpsReservation) {
+      setNpsReservationNumber("");
+    }
+  }, [purpose, selectedPurposeOption]);
 
   useEffect(() => {
     async function loadData() {
@@ -220,43 +326,68 @@ export default function DailyAccessRequestWizard() {
     loadData();
   }, [supabase]);
 
-  async function submitRequest() {
+  function validateRequestForm() {
     if (!account) {
-      alert("No access account found.");
-      return;
+      return "No access account found.";
     }
 
     if (account.status !== "active") {
-      alert("Your access account must be active before requesting access.");
-      return;
+      return "Your access account must be active before requesting access.";
     }
 
     if (!gateId) {
-      alert("Select a gate.");
-      return;
+      return "Select a gate.";
     }
 
-    const selectedGate = gates.find((gate) => gate.id === gateId);
-
     if (!selectedGate || selectedGate.status === "closed") {
-      alert("This gate is not currently available.");
-      return;
+      return "This gate is not currently available.";
+    }
+
+    if (!purpose) {
+      return "Select a purpose.";
+    }
+
+    if (
+    !selectedGateIsAinapo &&
+    (
+      purpose === "Mauna Loa / National Park Access" ||
+      purpose === "Hiking" ||
+      purpose === "Ainapo Cabin"
+    )
+  ) {
+    return "Mauna Loa / National Park Access, Hiking, and ʻĀinapō Cabin are only allowed through the ʻĀinapō Gate.";
+  }
+
+    if (purpose === "Other" && !otherPurpose.trim()) {
+      return "Please briefly describe the purpose of your access request.";
+    }
+
+    if (purpose === "Ainapo Cabin") {
+      if (!exitDate) {
+        return "Exit Date is required for ʻĀinapō Cabin access.";
+      }
+
+      if (!dlnrPermitNumber.trim()) {
+        return "DLNR Permit Number is required for ʻĀinapō Cabin access.";
+      }
+
+      if (!isValidDlnrPermitNumber(dlnrPermitNumber)) {
+        return "DLNR Permit Number must use the format YYYY-XXXXX, for example 2026-21861.";
+      }
+    }
+
+    if (purpose === "Mauna Loa / National Park Access") {
+      if (!exitDate) {
+        return "Exit Date is required for Mauna Loa / National Park Access.";
+      }
+
+      if (!npsReservationNumber.trim()) {
+        return "NPS Reservation Number is required for Mauna Loa / National Park Access.";
+      }
     }
 
     if (persons < 1) {
-      alert("Number of persons must be at least 1.");
-      return;
-    }
-
-    const finalPurpose =
-      purpose === "Other" ? otherPurpose.trim() || "Other" : purpose;
-
-    if (
-      (purpose === "Cabin" || purpose === "Mauna Loa") &&
-      !permitNumber.trim()
-    ) {
-      alert("Permit number is required for Cabin or Mauna Loa access.");
-      return;
+      return "Number of persons must be at least 1.";
     }
 
     const vehicleSummary = buildVehicleSummary(
@@ -266,9 +397,33 @@ export default function DailyAccessRequestWizard() {
     );
 
     if (!vehicleSummary) {
-      alert("Select or enter at least one vehicle.");
+      return "Select or enter at least one vehicle.";
+    }
+
+    return null;
+  }
+
+  async function submitRequest() {
+    const validationError = validateRequestForm();
+
+    if (validationError) {
+      alert(validationError);
       return;
     }
+
+    if (!account || !selectedGate) {
+      alert("Unable to submit request. Please refresh and try again.");
+      return;
+    }
+
+    const finalPurpose =
+      purpose === "Other" ? otherPurpose.trim() || "Other" : purpose;
+
+    const vehicleSummary = buildVehicleSummary(
+      account,
+      selectedVehicleIds,
+      additionalVehicles
+    );
 
     setSubmitting(true);
 
@@ -283,7 +438,9 @@ export default function DailyAccessRequestWizard() {
           party_size: persons,
           vehicle_summary: vehicleSummary,
           emergency_contact_phone: account.emergency_contact_phone,
-          summit_permit_number: permitNumber.trim() || null,
+          exit_date: exitDate || null,
+          dlnr_permit_number: dlnrPermitNumber.trim() || null,
+          nps_reservation_number: npsReservationNumber.trim() || null,
           organization: account.organization,
           status: "pending",
           admin_notes: null,
@@ -297,9 +454,7 @@ export default function DailyAccessRequestWizard() {
 
       setSuccessId(data.id);
     } catch (error) {
-      alert(
-        error instanceof Error ? error.message : "Unable to submit request."
-      );
+      alert(error instanceof Error ? error.message : "Unable to submit request.");
     } finally {
       setSubmitting(false);
     }
@@ -447,16 +602,16 @@ export default function DailyAccessRequestWizard() {
 
             <Card title="3. Purpose">
               <div className="choice-grid two">
-                {purposes.map((item) => (
+                {visiblePurposeOptions.map((option) => (
                   <button
-                    key={item}
+                    key={option.value}
                     className={`choice-card ${
-                      purpose === item ? "selected" : ""
+                      purpose === option.value ? "selected" : ""
                     }`}
                     type="button"
-                    onClick={() => setPurpose(item)}
+                    onClick={() => setPurpose(option.value)}
                   >
-                    {item}
+                    {option.label}
                   </button>
                 ))}
               </div>
@@ -472,13 +627,44 @@ export default function DailyAccessRequestWizard() {
                 </label>
               )}
 
-              {(purpose === "Cabin" || purpose === "Mauna Loa") && (
+              {selectedPurposeOption?.requiresExitDate && (
                 <label>
-                  Permit Number
+                  Exit Date
                   <input
-                    value={permitNumber}
-                    onChange={(event) => setPermitNumber(event.target.value)}
-                    placeholder="Cabin or backcountry permit number"
+                    type="date"
+                    min={requestDate}
+                    max={toDateInputValue(maxDate)}
+                    value={exitDate}
+                    onChange={(event) => setExitDate(event.target.value)}
+                    required
+                  />
+                </label>
+              )}
+
+              {selectedPurposeOption?.requiresDlnrPermit && (
+                <label>
+                  DLNR Permit Number
+                  <input
+                    value={dlnrPermitNumber}
+                    onChange={(event) =>
+                      setDlnrPermitNumber(event.target.value)
+                    }
+                    placeholder="2026-21861"
+                    required
+                  />
+                </label>
+              )}
+
+              {selectedPurposeOption?.requiresNpsReservation && (
+                <label>
+                  NPS Reservation Number
+                  <input
+                    value={npsReservationNumber}
+                    onChange={(event) =>
+                      setNpsReservationNumber(event.target.value)
+                    }
+                    placeholder="Enter reservation number"
+                    required
                   />
                 </label>
               )}
@@ -546,17 +732,37 @@ export default function DailyAccessRequestWizard() {
                 <div className="summary-item">
                   <span>Gate</span>
                   <strong>
-                    {gates.find((gate) => gate.id === gateId)?.name ||
-                      "Not selected"}
+                    {selectedGate?.name || "Not selected"}
                   </strong>
                 </div>
 
                 <div className="summary-item">
                   <span>Purpose</span>
                   <strong>
-                    {purpose === "Other" ? otherPurpose || "Other" : purpose}
+                    {purpose === "Other" ? otherPurpose || "Other" : purpose || "Not selected"}
                   </strong>
                 </div>
+
+                {exitDate && (
+                  <div className="summary-item">
+                    <span>Exit Date</span>
+                    <strong>{formatDisplayDate(exitDate)}</strong>
+                  </div>
+                )}
+
+                {dlnrPermitNumber && (
+                  <div className="summary-item">
+                    <span>DLNR Permit</span>
+                    <strong>{dlnrPermitNumber}</strong>
+                  </div>
+                )}
+
+                {npsReservationNumber && (
+                  <div className="summary-item">
+                    <span>NPS Reservation</span>
+                    <strong>{npsReservationNumber}</strong>
+                  </div>
+                )}
 
                 <div className="summary-item">
                   <span>Persons</span>

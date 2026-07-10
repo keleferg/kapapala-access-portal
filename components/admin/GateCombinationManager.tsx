@@ -16,6 +16,9 @@ type GateManagerRow = {
   today_combination: string | null;
   next_combination: string | null;
   next_combination_date: string | null;
+
+  ibeacon_required: boolean | null;
+  ibeacon_disabled_reason: string | null;
 };
 
 type GateFormState = {
@@ -66,6 +69,23 @@ function statusLabel(status: string | null): string {
   }
 }
 
+function gateHoursLabel(gateName: string | null): string {
+  const normalizedName = (gateName || "").toLowerCase();
+
+  if (normalizedName.includes("ʻāinapō") || normalizedName.includes("ainapo")) {
+    return "Hours: 4:30 AM – 8:30 PM";
+  }
+
+  if (
+    normalizedName.includes("honanui") ||
+    normalizedName.includes("wood valley")
+  ) {
+    return "Hours: 6:00 AM – 6:00 PM";
+  }
+
+  return "Hours not set";
+}
+
 function todayDateString(): string {
   const now = new Date();
   const year = now.getFullYear();
@@ -78,7 +98,7 @@ function todayDateString(): string {
 async function syncGateCodeUpdateToSharePoint(
   payload: SharePointGateCodePayload
 ) {
-  const response = await fetch("/api/admin/sharepoint/gate-code-update", {
+  const response = await fetch("/api/admin/sharepoint/gate-route-update", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -110,6 +130,9 @@ export default function GateCombinationManager() {
   const [forms, setForms] = useState<Record<string, GateFormState>>({});
   const [loading, setLoading] = useState(true);
   const [savingGateId, setSavingGateId] = useState<string | null>(null);
+  const [savingIBeaconGateId, setSavingIBeaconGateId] = useState<string | null>(
+    null
+  );
   const [messageByGate, setMessageByGate] = useState<Record<string, string>>(
     {}
   );
@@ -136,7 +159,12 @@ export default function GateCombinationManager() {
       return;
     }
 
-    const rows = (data || []) as GateManagerRow[];
+    const rows = ((data || []) as GateManagerRow[]).map((row) => ({
+      ...row,
+      ibeacon_required: row.ibeacon_required ?? true,
+      ibeacon_disabled_reason: row.ibeacon_disabled_reason ?? null,
+    }));
+
     const nextForms: Record<string, GateFormState> = {};
 
     rows.forEach((gate) => {
@@ -288,6 +316,84 @@ export default function GateCombinationManager() {
     }
   }
 
+  async function toggleIBeaconRequirement(gate: GateManagerRow) {
+    const currentlyRequired = gate.ibeacon_required ?? true;
+    const nextRequired = !currentlyRequired;
+
+    let reason: string | null = null;
+
+    if (!nextRequired) {
+      reason = window.prompt(
+        "Reason for disabling iBeacon requirement? Example: Beacon malfunction"
+      );
+
+      if (!reason?.trim()) {
+        return;
+      }
+    }
+
+    setSavingIBeaconGateId(gate.gate_id);
+    setMessageByGate((current) => ({
+      ...current,
+      [gate.gate_id]: "",
+    }));
+
+    const supabase = getSupabaseClient();
+
+    try {
+      const { error: rpcError } = await (supabase as any).rpc(
+        "admin_set_gate_ibeacon_requirement",
+        {
+          p_gate_id: gate.gate_id,
+          p_ibeacon_required: nextRequired,
+          p_reason: reason,
+        }
+      );
+
+      if (rpcError) {
+        console.error("iBeacon requirement update failed:", rpcError);
+
+        setMessageByGate((current) => ({
+          ...current,
+          [gate.gate_id]: `iBeacon update failed: ${rpcError.message}`,
+        }));
+
+        return;
+      }
+
+      setGates((current) =>
+        current.map((currentGate) =>
+          currentGate.gate_id === gate.gate_id
+            ? {
+                ...currentGate,
+                ibeacon_required: nextRequired,
+                ibeacon_disabled_reason: nextRequired ? null : reason?.trim() || null,
+              }
+            : currentGate
+        )
+      );
+
+      setMessageByGate((current) => ({
+        ...current,
+        [gate.gate_id]: nextRequired
+          ? "iBeacon requirement enabled."
+          : "iBeacon requirement disabled for this gate.",
+      }));
+    } catch (error) {
+      console.error("iBeacon requirement update failed:", error);
+
+      setMessageByGate((current) => ({
+        ...current,
+        [gate.gate_id]:
+          error instanceof Error
+            ? error.message
+            : "Unable to update iBeacon requirement.",
+      }));
+    } finally {
+      setSavingIBeaconGateId(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="gate-manager-grid">
@@ -323,6 +429,9 @@ export default function GateCombinationManager() {
     <div className="gate-manager-grid">
       {gates.map((gate) => {
         const form = forms[gate.gate_id];
+        const ibeaconRequired = gate.ibeacon_required ?? true;
+        const isSavingCombination = savingGateId === gate.gate_id;
+        const isSavingIBeacon = savingIBeaconGateId === gate.gate_id;
 
         return (
           <Card key={gate.gate_id} title={gate.gate_name || "Unnamed Gate"}>
@@ -332,12 +441,41 @@ export default function GateCombinationManager() {
                 tone={statusTone(gate.gate_status)}
               />
 
-              <span>{gate.road_condition || "No road status"}</span>
+              <span>{gateHoursLabel(gate.gate_name)}</span>
             </div>
 
             <div className="combo-box">
               <span>Today&apos;s Combination</span>
               <strong>{gate.today_combination || "—"}</strong>
+            </div>
+
+            <div className="combo-box">
+              <span>iBeacon Requirement</span>
+
+              <strong>
+                {ibeaconRequired ? "Required" : "Bypassed"}
+              </strong>
+
+              <p className="muted">
+                {ibeaconRequired
+                  ? "Public users must be near this gate's iBeacon to reveal the code."
+                  : gate.ibeacon_disabled_reason
+                    ? `Bypass reason: ${gate.ibeacon_disabled_reason}`
+                    : "Public users can reveal the code without iBeacon detection."}
+              </p>
+
+              <button
+                type="button"
+                className={ibeaconRequired ? "button warning" : "button secondary"}
+                onClick={() => void toggleIBeaconRequirement(gate)}
+                disabled={isSavingIBeacon}
+              >
+                {isSavingIBeacon
+                  ? "Saving..."
+                  : ibeaconRequired
+                    ? "Disable iBeacon Requirement"
+                    : "Enable iBeacon Requirement"}
+              </button>
             </div>
 
             <form
@@ -383,7 +521,7 @@ export default function GateCombinationManager() {
               </label>
 
               <label>
-                Road Condition / Notes
+                Public Note
                 <textarea
                   value={form?.notes || ""}
                   onChange={(event) =>
@@ -395,11 +533,9 @@ export default function GateCombinationManager() {
               <button
                 type="submit"
                 className="button primary form-button"
-                disabled={savingGateId === gate.gate_id}
+                disabled={isSavingCombination}
               >
-                {savingGateId === gate.gate_id
-                  ? "Saving..."
-                  : "Save Gate Combination"}
+                {isSavingCombination ? "Saving..." : "Save Gate Combination"}
               </button>
 
               {messageByGate[gate.gate_id] ? (

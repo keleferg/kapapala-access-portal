@@ -4,16 +4,22 @@ import {
   isSupabaseAdminConfigured,
 } from "@/lib/supabaseAdmin";
 
-export async function GET(
-  _request: Request,
-  context: { params: Promise<{ documentId: string }> }
-) {
+type RouteContext = {
+  params: Promise<{
+    documentId: string;
+  }>;
+};
+
+export async function GET(_request: Request, context: RouteContext) {
   try {
     const { documentId } = await context.params;
 
     if (!isSupabaseAdminConfigured()) {
       return NextResponse.json(
-        { success: false, error: "Supabase admin client is not configured." },
+        {
+          success: false,
+          error: "Supabase admin client is not configured.",
+        },
         { status: 500 }
       );
     }
@@ -22,35 +28,79 @@ export async function GET(
 
     const { data: document, error: documentError } = await (supabase as any)
       .from("access_account_documents")
-      .select("storage_bucket, storage_path")
+      .select("id, storage_bucket, storage_path")
       .eq("id", documentId)
-      .single();
+      .maybeSingle();
 
-    if (documentError || !document) {
+    if (documentError) {
       return NextResponse.json(
-        { success: false, error: documentError?.message || "Document not found." },
+        {
+          success: false,
+          error: documentError.message,
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!document) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Document record not found.",
+        },
         { status: 404 }
       );
     }
 
-    const { data, error } = await (supabase as any).storage
-      .from(document.storage_bucket)
+    if (!document.storage_path) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Document storage path is missing.",
+        },
+        { status: 404 }
+      );
+    }
+
+    const bucketName = document.storage_bucket || "kapapala-documents";
+
+    const { data: signedData, error: signedUrlError } = await (
+      supabase as any
+    ).storage
+      .from(bucketName)
       .createSignedUrl(document.storage_path, 60 * 5);
 
-    if (error) {
+    if (signedUrlError) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        {
+          success: false,
+          error: signedUrlError.message,
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!signedData?.signedUrl) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Signed URL was not returned.",
+        },
         { status: 500 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      signedUrl: data.signedUrl,
+      signedUrl: signedData.signedUrl,
+      expiresInSeconds: 60 * 5,
     });
   } catch (error) {
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Unknown error" },
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
       { status: 500 }
     );
   }

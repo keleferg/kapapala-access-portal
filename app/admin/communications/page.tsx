@@ -1,6 +1,5 @@
 import AppShell from "../../../components/layout/AppShell";
-import CommunicationsPanel from "../../../components/operations/CommunicationsPanel";
-import NotificationsPanel from "../../../components/operations/NotificationsPanel";
+import DailyAccessNotificationPanel from "../../../components/operations/DailyAccessNotificationPanel";
 import Card from "../../../components/ui/Card";
 import StatusBadge from "../../../components/ui/StatusBadge";
 
@@ -11,19 +10,33 @@ export default function CommunicationsPage() {
         <p>Operations</p>
         <h2>Communications Center</h2>
         <span>
-          Manage SMS templates, email templates, broadcasts, delivery history, and failed-message retry workflows.
+          Send in-app notifications to users with approved access for a selected date and gate.
         </span>
       </div>
 
       <div className="card-grid four">
-        <Card title="SMS Today"><div className="big-value">16</div><StatusBadge label="Sent" tone="green" /></Card>
-        <Card title="Failed SMS"><div className="big-value">1</div><StatusBadge label="Retry Needed" tone="red" /></Card>
-        <Card title="Templates"><div className="big-value">4</div><StatusBadge label="Draft" tone="yellow" /></Card>
-        <Card title="Broadcasts"><div className="big-value">0</div><StatusBadge label="None Active" tone="gray" /></Card>
+        <Card title="Audience">
+          <div className="big-value">Daily</div>
+          <StatusBadge label="Approved Users" tone="green" />
+        </Card>
+
+        <Card title="Delivery Type">
+          <div className="big-value">In-App</div>
+          <StatusBadge label="Phase 1" tone="green" />
+        </Card>
+
+        <Card title="Gate Filter">
+          <div className="big-value">Yes</div>
+          <StatusBadge label="Optional" tone="yellow" />
+        </Card>
+
+        <Card title="Push Alerts">
+          <div className="big-value">Later</div>
+          <StatusBadge label="Phase 2" tone="gray" />
+        </Card>
       </div>
 
-      <CommunicationsPanel />
-      <NotificationsPanel />
+      <DailyAccessNotificationPanel />
     </AppShell>
   );
 }

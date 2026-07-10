@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Card from "../ui/Card";
 import StatusBadge from "../ui/StatusBadge";
@@ -60,6 +60,15 @@ type NewUserForm = {
   vehicleColor: string;
 };
 
+type RequestCounters = {
+  requests_90: number;
+  entries_90: number;
+  requests_365: number;
+  entries_365: number;
+  requests_lifetime: number;
+  entries_lifetime: number;
+};
+
 type AccessAccountManagementProps = {
   accountId?: string;
 };
@@ -81,6 +90,15 @@ const emptyNewUserForm: NewUserForm = {
   vehicleColor: "",
 };
 
+const emptyRequestCounters: RequestCounters = {
+  requests_90: 0,
+  entries_90: 0,
+  requests_365: 0,
+  entries_365: 0,
+  requests_lifetime: 0,
+  entries_lifetime: 0,
+};
+
 function getTone(status: string): "green" | "yellow" | "red" {
   if (status === "active") return "green";
   if (status === "pending") return "yellow";
@@ -96,18 +114,6 @@ function formatRole(role?: AppRole | null) {
   if (role === "super_user") return "Super User";
   if (role === "admin") return "Admin";
   return "User";
-}
-
-function getRoleDescription(role?: AppRole | null) {
-  if (role === "super_user") {
-    return "User access + admin tools + permission management";
-  }
-
-  if (role === "admin") {
-    return "User access + admin tools";
-  }
-
-  return "Standard user access";
 }
 
 function getAccountName(account: AccessAccount) {
@@ -147,6 +153,10 @@ function getVehicleSummary(account: AccessAccount) {
     .join(", ");
 }
 
+function formatRequestCounter(entries: number, requests: number) {
+  return `${entries}/${requests}`;
+}
+
 export default function AccessAccountManagement({
   accountId,
 }: AccessAccountManagementProps) {
@@ -181,9 +191,13 @@ export default function AccessAccountManagement({
   const [revokingAccountId, setRevokingAccountId] = useState<string | null>(
     null
   );
-  const [updatingRoleAccountId, setUpdatingRoleAccountId] = useState<
-    string | null
-  >(null);
+
+  const [requestCounters, setRequestCounters] =
+    useState<RequestCounters>(emptyRequestCounters);
+  const [loadingRequestCounters, setLoadingRequestCounters] = useState(false);
+  const [requestCounterError, setRequestCounterError] = useState<string | null>(
+    null
+  );
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -237,6 +251,68 @@ export default function AccessAccountManagement({
     accounts[0] ||
     null;
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRequestCounters() {
+      if (!selected?.id) {
+        setRequestCounters(emptyRequestCounters);
+        setRequestCounterError(null);
+        return;
+      }
+
+      setLoadingRequestCounters(true);
+      setRequestCounterError(null);
+
+      try {
+        const supabase = getSupabaseClient() as any;
+
+        const { data, error } = await supabase.rpc(
+          "get_access_account_request_counters",
+          {
+            p_access_account_id: selected.id,
+          }
+        );
+
+        if (error) {
+          throw error;
+        }
+
+        const row = Array.isArray(data) ? data[0] : data;
+
+        if (!cancelled) {
+          setRequestCounters({
+            requests_90: Number(row?.requests_90 ?? 0),
+            entries_90: Number(row?.entries_90 ?? 0),
+            requests_365: Number(row?.requests_365 ?? 0),
+            entries_365: Number(row?.entries_365 ?? 0),
+            requests_lifetime: Number(row?.requests_lifetime ?? 0),
+            entries_lifetime: Number(row?.entries_lifetime ?? 0),
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setRequestCounters(emptyRequestCounters);
+          setRequestCounterError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load request counters."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingRequestCounters(false);
+        }
+      }
+    }
+
+    void loadRequestCounters();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selected?.id]);
+
   const activeCount = accounts.filter(
     (account) => account.status === "active"
   ).length;
@@ -262,6 +338,14 @@ export default function AccessAccountManagement({
       ...current,
       [field]: value,
     }));
+  }
+
+  async function refreshAccounts() {
+    await refresh();
+
+    if (selected?.id) {
+      setSelectedAccountId(selected.id);
+    }
   }
 
   async function addUserAccount() {
@@ -335,7 +419,7 @@ export default function AccessAccountManagement({
       setShowAddUserForm(false);
       setNewUser(emptyNewUserForm);
       setActionSuccess("User account created.");
-      await refresh();
+      await refreshAccounts();
     } catch (error) {
       setActionError(
         error instanceof Error
@@ -394,7 +478,7 @@ export default function AccessAccountManagement({
         setActionSuccess("Account activated and welcome email sent.");
       }
 
-      await refresh();
+      await refreshAccounts();
     } catch (error) {
       setActionError(
         error instanceof Error
@@ -403,59 +487,6 @@ export default function AccessAccountManagement({
       );
     } finally {
       setActivatingAccountId(null);
-    }
-  }
-
-  async function updateAccountRole(account: AccessAccount, role: AppRole) {
-    const currentRole = account.app_role || "user";
-
-    if (currentRole === role) return;
-
-    const accountName = getAccountName(account);
-    const accessId = account.access_id || "Pending";
-
-    setActionError(null);
-    setActionSuccess(null);
-
-    const confirmed = window.confirm(
-      `Change account permission?\n\nName: ${accountName}\nAccess ID: ${accessId}\n\nCurrent permission: ${formatRole(
-        currentRole
-      )}\nNew permission: ${formatRole(role)}`
-    );
-
-    if (!confirmed) return;
-
-    setUpdatingRoleAccountId(account.id);
-
-    try {
-      const supabase = getSupabaseClient() as any;
-
-      const { error } = await supabase
-        .from("access_accounts")
-        .update({
-          app_role: role,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", account.id);
-
-      if (error) {
-        console.error("Unable to update account permission:", error);
-        setActionError(
-          error.message || "Unable to update account permission."
-        );
-        return;
-      }
-
-      setActionSuccess("Account permission updated.");
-      await refresh();
-    } catch (error) {
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : "Unable to update account permission."
-      );
-    } finally {
-      setUpdatingRoleAccountId(null);
     }
   }
 
@@ -492,7 +523,7 @@ export default function AccessAccountManagement({
       }
 
       setActionSuccess("Account revoked.");
-      await refresh();
+      await refreshAccounts();
     } catch (error) {
       setActionError(
         error instanceof Error
@@ -563,7 +594,8 @@ export default function AccessAccountManagement({
       }
 
       setActionSuccess("Account deleted.");
-      await refresh();
+      setSelectedAccountId(null);
+      await refreshAccounts();
     } catch (error) {
       setActionError(
         error instanceof Error
@@ -635,7 +667,11 @@ export default function AccessAccountManagement({
               Add User
             </button>
 
-            <button className="button secondary" type="button" onClick={refresh}>
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() => void refreshAccounts()}
+            >
               Refresh
             </button>
           </div>
@@ -866,10 +902,12 @@ export default function AccessAccountManagement({
                       <span>{account.access_id || "Access ID pending"}</span>
                     </div>
 
-                    <StatusBadge
-                      label={formatStatus(account.status)}
-                      tone={getTone(account.status)}
-                    />
+                    <div className="access-account-status-cell">
+                      <StatusBadge
+                        label={formatStatus(account.status)}
+                        tone={getTone(account.status)}
+                      />
+                    </div>
 
                     <small>{formatRole(account.app_role)}</small>
                     <small>{vehicles}</small>
@@ -907,11 +945,6 @@ export default function AccessAccountManagement({
                   </div>
 
                   <div>
-                    <span>Permission Role</span>
-                    <strong>{formatRole(selected.app_role)}</strong>
-                  </div>
-
-                  <div>
                     <span>Preferred Gate</span>
                     <strong>{selected.default_gate || "—"}</strong>
                   </div>
@@ -928,52 +961,55 @@ export default function AccessAccountManagement({
                 </div>
               </Card>
 
-              <Card title="Account Permissions">
-                <div className="profile-detail-list">
+              <Card title="Access History Counters">
+                <div className="profile-metric-grid">
                   <div>
-                    <span>Current Permission</span>
-                    <strong>{formatRole(selected.app_role)}</strong>
+                    <span>Entries / Requests 90 Days</span>
+                    <strong>
+                      {loadingRequestCounters
+                        ? "Loading..."
+                        : formatRequestCounter(
+                            requestCounters.entries_90,
+                            requestCounters.requests_90
+                          )}
+                    </strong>
                   </div>
 
                   <div>
-                    <span>Permission Scope</span>
-                    <strong>{getRoleDescription(selected.app_role)}</strong>
+                    <span>Entries / Requests 365 Days</span>
+                    <strong>
+                      {loadingRequestCounters
+                        ? "Loading..."
+                        : formatRequestCounter(
+                            requestCounters.entries_365,
+                            requestCounters.requests_365
+                          )}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Entries / Requests Lifetime</span>
+                    <strong>
+                      {loadingRequestCounters
+                        ? "Loading..."
+                        : formatRequestCounter(
+                            requestCounters.entries_lifetime,
+                            requestCounters.requests_lifetime
+                          )}
+                    </strong>
                   </div>
                 </div>
 
-                <div
-                  className="filter-chip-row"
-                  style={{ marginTop: 16, marginBottom: 8 }}
-                >
-                  {(["user", "admin", "super_user"] as AppRole[]).map(
-                    (role) => {
-                      const isCurrentRole =
-                        (selected.app_role || "user") === role;
-                      const isUpdating = updatingRoleAccountId === selected.id;
-
-                      return (
-                        <button
-                          key={role}
-                          className={`filter-chip ${
-                            isCurrentRole ? "active" : ""
-                          }`}
-                          type="button"
-                          disabled={isUpdating}
-                          onClick={() => void updateAccountRole(selected, role)}
-                        >
-                          {isUpdating && !isCurrentRole
-                            ? "Updating..."
-                            : formatRole(role)}
-                        </button>
-                      );
-                    }
-                  )}
-                </div>
-
-                <p className="muted-text">
-                  Admin includes normal user functions. Super User includes user
-                  functions, admin functions, and permission management.
+                <p className="muted-text" style={{ marginTop: 12 }}>
+                  Format is entries / requests. Example: 12/20 means 12
+                  confirmed entries out of 20 access requests.
                 </p>
+
+                {requestCounterError && (
+                  <p className="muted-text" style={{ marginTop: 12 }}>
+                    Request counters could not be loaded: {requestCounterError}
+                  </p>
+                )}
               </Card>
 
               <Card title="Contact & Vehicles">
@@ -1052,10 +1088,6 @@ export default function AccessAccountManagement({
                   >
                     View Trips
                   </Link>
-
-                  <button className="button secondary" type="button">
-                    Print Access Card
-                  </button>
 
                   <button className="button danger" type="button">
                     Suspend

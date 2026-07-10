@@ -3,3 +3,17 @@ node_modules/
 .env
 .env.local
 .DS_Store
+
+# Local bulk login reports
+bulk-login-*.csv
+
+# Local bulk imports / generated reports
+bulk-id-import/
+bulk-id-import/**
+bulk-login-dry-run-report.csv
+bulk-login-report.csv
+bulk-id-import-report.csv
+bulk-id-import-dry-run-report.csv
+*.heic
+*.mov
+*.mp4

@@ -23,6 +23,7 @@ function roadTone(status: string): "green" | "yellow" | "red" {
   switch (status.toLowerCase()) {
     case "open":
     case "good":
+    case "normal":
       return "green";
 
     case "caution":
@@ -33,6 +34,17 @@ function roadTone(status: string): "green" | "yellow" | "red" {
     default:
       return "red";
   }
+}
+
+function displayStatus(value: string | null | undefined) {
+  if (!value) return "Unavailable";
+
+  return value
+    .replaceAll("_", " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
 }
 
 export default function WeatherCard() {
@@ -56,35 +68,70 @@ export default function WeatherCard() {
     );
   }
 
+  const updatedTime = new Date(conditions.lastUpdated).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  const weatherCondition = conditions.weather?.condition ?? "Unavailable";
+  const temperature =
+    conditions.weather?.temperature != null
+      ? `${conditions.weather.temperature}°`
+      : "--";
+
+  const roadStatus = conditions.roadStatus || "Unavailable";
+  const fireStatus = conditions.fireStatus || "Unavailable";
+
   return (
-    <Card
-      title="Current Conditions"
-      subtitle={`Updated ${new Date(
-        conditions.lastUpdated
-      ).toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit",
-      })}`}
-    >
+    <Card title="Current Conditions" subtitle={`Updated ${updatedTime}`}>
       <div className="dashboard-weather-summary">
         <div>
           <span>Weather</span>
-          <strong>{conditions.weather?.condition ?? "Unavailable"}</strong>
+          <strong>{weatherCondition}</strong>
         </div>
 
         <div>
           <span>Temp</span>
-          <strong>
-            {conditions.weather?.temperature != null
-              ? `${conditions.weather.temperature}°`
-              : "--"}
-          </strong>
+          <strong>{temperature}</strong>
         </div>
       </div>
 
-      <div className="dashboard-status-row">
-        <StatusBadge label={conditions.roadStatus} tone={roadTone(conditions.roadStatus)} />
-        <StatusBadge label={conditions.fireStatus} tone={fireTone(conditions.fireStatus)} />
+      <div
+        style={{
+          display: "grid",
+          gap: "0.65rem",
+          marginTop: "1rem",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "0.75rem",
+          }}
+        >
+          <span className="muted-text">Road / Access</span>
+          <StatusBadge
+            label={displayStatus(roadStatus)}
+            tone={roadTone(roadStatus)}
+          />
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "0.75rem",
+          }}
+        >
+          <span className="muted-text">Fire Risk</span>
+          <StatusBadge
+            label={displayStatus(fireStatus)}
+            tone={fireTone(fireStatus)}
+          />
+        </div>
       </div>
     </Card>
   );

@@ -17,14 +17,6 @@ function createAdminClient() {
   });
 }
 
-function getSiteUrl() {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.URL ||
-    "https://kapapalaranch.com"
-  ).replace(/\/$/, "");
-}
-
 function randomAccessId() {
   return String(Math.floor(Math.random() * (99998 - 10000 + 1)) + 10000);
 }
@@ -53,7 +45,30 @@ async function generateUniqueAccessId(
   throw new Error("Unable to generate a unique Access ID.");
 }
 
-async function createOrUpdateAuthUser({
+async function findProfileIdByEmail({
+  supabase,
+  email,
+}: {
+  supabase: ReturnType<typeof createAdminClient>;
+  email: string;
+}) {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, email")
+    .ilike("email", normalizedEmail)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("Unable to look up existing profile by email:", error);
+    return null;
+  }
+
+  return data?.id ?? null;
+}
+
+async function createOrFindAuthUser({
   supabase,
   email,
   firstName,
@@ -68,6 +83,12 @@ async function createOrUpdateAuthUser({
   accountId: string;
   accessId: string;
 }) {
+  const existingProfileId = await findProfileIdByEmail({ supabase, email });
+
+  if (existingProfileId) {
+    return existingProfileId;
+  }
+
   const temporaryPassword = crypto.randomUUID();
 
   const { data: createdUserData, error: createUserError } =
@@ -95,7 +116,7 @@ async function createOrUpdateAuthUser({
     message.includes("exists")
   ) {
     console.warn(
-      "Auth user already exists. Continuing without creating duplicate auth user."
+      "Auth user already exists, but no matching profile row was found."
     );
     return null;
   }
@@ -103,118 +124,51 @@ async function createOrUpdateAuthUser({
   throw createUserError;
 }
 
-async function generatePasswordSetupLink({
-  supabase,
-  email,
-}: {
-  supabase: ReturnType<typeof createAdminClient>;
-  email: string;
-}) {
-  const siteUrl = getSiteUrl();
+async function callWelcomeEmailFunction(accountId: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  const { data, error } = await supabase.auth.admin.generateLink({
-    type: "recovery",
-    email,
-    options: {
-      redirectTo: `${siteUrl}/set-password`,
-    },
-  });
-
-  if (error) {
-    console.warn("Unable to generate password setup link:", error);
-    return null;
-  }
-
-  return data.properties?.action_link || null;
-}
-
-async function sendWelcomeEmail({
-  email,
-  firstName,
-  accessId,
-  passwordSetupLink,
-}: {
-  email: string;
-  firstName: string;
-  accessId: string;
-  passwordSetupLink: string | null;
-}) {
-  const resendApiKey = process.env.RESEND_API_KEY;
-  const fromEmail =
-    process.env.RESEND_FROM_EMAIL ||
-    "Kapāpala Ranch Operations <operations@kapapalaranch.com>";
-
-  const subject = "Kapāpala Forest Reserve Access Account Approved";
-
-  const emailBody = `Aloha ${firstName},
-
-Welcome to the Kapāpala Forest Reserve Access System. Your Kapāpala Forest Reserve Access Account has been successfully registered and approved.
-
-Your Access ID is:
-
-${accessId}
-
-To set your account password and access the Kapāpala Access Portal, please use the secure link below:
-
-${
-  passwordSetupLink ||
-  "Password setup link could not be generated. Please contact Kapāpala Ranch Operations."
-}
-
-This link is time-sensitive. If it expires, please contact Kapāpala Ranch Operations for a new password setup link.
-
-Please keep this Access ID for your records. You may need it when submitting daily access requests or when communicating with Kapāpala Ranch regarding your access account.
-
-For more information about Kapāpala Forest Reserve access, including current rules, requirements, and important updates, please visit:
-
-https://kapapalaranch.com/forest-reserve-access
-
-As a reminder, your access account must be revalidated every two years in order to remain active. You are also responsible for reviewing and following all rules, requirements, and conditions of access as published on the Kapāpala Ranch website.
-
-Mahalo for helping us protect Kapāpala and ensure safe, responsible access to the Forest Reserve.
-
-Kapāpala Ranch Operations`;
-
-  if (!resendApiKey || resendApiKey === "disabled_temporarily") {
-    console.warn("RESEND_API_KEY is missing or disabled. Welcome email was not sent.");
-
+  if (!supabaseUrl || !anonKey) {
     return {
       sent: false,
-      error: "RESEND_API_KEY is missing or disabled.",
+      skipped: false,
+      error:
+        "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY.",
       result: null,
     };
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: fromEmail,
-      to: email,
-      subject,
-      text: emailBody,
-    }),
-  });
+  const response = await fetch(
+    `${supabaseUrl}/functions/v1/send-welcome-email`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${anonKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        access_account_id: accountId,
+      }),
+    }
+  );
 
-  if (!response.ok) {
-    const errorText = await response.text();
+  const result = await response.json().catch(() => null);
 
-    console.error("Welcome email failed:", errorText);
-
+  if (!response.ok || !result?.success) {
     return {
       sent: false,
-      error: errorText,
-      result: null,
+      skipped: false,
+      error:
+        result?.error ||
+        result?.details?.message ||
+        "Welcome email function failed.",
+      result,
     };
   }
-
-  const result = await response.json();
 
   return {
-    sent: true,
+    sent: !result.skipped,
+    skipped: Boolean(result.skipped),
     error: null,
     result,
   };
@@ -278,47 +232,16 @@ export async function POST(_request: NextRequest, context: RouteContext) {
     const expiresAt = new Date(now);
     expiresAt.setFullYear(expiresAt.getFullYear() + 2);
 
-    let authUserId: string | null = null;
-    let passwordSetupLink: string | null = null;
-    let emailSent = false;
-    let emailError: string | null = null;
+    let authUserId: string | null = existingAccount.profile_id || null;
 
-    /*
-      Safety guard:
-      If the welcome email was already sent, do not create a new password
-      setup link and do not call Resend. Repeated activation calls become harmless.
-    */
-    if (welcomeEmailAlreadySent) {
-  console.log("Welcome email already sent. Returning without changes.", {
-    accountId,
-    welcomeEmailSentAt: existingAccount.welcome_email_sent_at,
-  });
-
-  return NextResponse.json({
-    success: true,
-    accessId,
-    account: existingAccount,
-    emailPrepared: Boolean(email),
-    emailSent: false,
-    emailError: "Welcome email was already sent previously.",
-    welcomeEmailAlreadySent: true,
-    passwordSetupLink: null,
-  });
-}
-
-    if (email) {
-      authUserId = await createOrUpdateAuthUser({
+    if (email && !authUserId) {
+      authUserId = await createOrFindAuthUser({
         supabase,
         email,
         firstName,
         lastName,
         accountId,
         accessId,
-      });
-
-      passwordSetupLink = await generatePasswordSetupLink({
-        supabase,
-        email,
       });
     }
 
@@ -330,7 +253,8 @@ export async function POST(_request: NextRequest, context: RouteContext) {
         profile_id: existingAccount.profile_id || authUserId,
         reviewed_at: now.toISOString(),
         revalidated_at: now.toISOString(),
-        expires_at: expiresAt.toISOString(),
+        expires_at: expiresAt.toISOString().slice(0, 10),
+        updated_at: now.toISOString(),
       })
       .eq("id", accountId)
       .select("*")
@@ -346,44 +270,43 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       );
     }
 
-    if (email) {
-      const welcomeEmailResult = await sendWelcomeEmail({
-        email,
-        firstName,
+    if (!email) {
+      return NextResponse.json({
+        success: true,
         accessId,
-        passwordSetupLink,
+        account: updatedAccount,
+        emailPrepared: false,
+        emailSent: false,
+        emailError: "No applicant email address on file.",
+        welcomeEmailAlreadySent,
       });
-
-      emailSent = welcomeEmailResult.sent;
-      emailError = welcomeEmailResult.error;
-
-      const { error: emailTrackingError } = await supabase
-        .from("access_accounts")
-        .update({
-          welcome_email_sent_at: welcomeEmailResult.sent
-            ? new Date().toISOString()
-            : null,
-          welcome_email_last_error: welcomeEmailResult.error,
-        })
-        .eq("id", accountId);
-
-      if (emailTrackingError) {
-        console.warn(
-          "Unable to update welcome email tracking fields:",
-          emailTrackingError
-        );
-      }
     }
+
+    if (welcomeEmailAlreadySent) {
+      return NextResponse.json({
+        success: true,
+        accessId,
+        account: updatedAccount,
+        emailPrepared: true,
+        emailSent: false,
+        emailSkipped: true,
+        emailError: "Welcome email was already sent previously.",
+        welcomeEmailAlreadySent: true,
+      });
+    }
+
+    const welcomeEmailResult = await callWelcomeEmailFunction(accountId);
 
     return NextResponse.json({
       success: true,
       accessId,
       account: updatedAccount,
-      emailPrepared: Boolean(email),
-      emailSent,
-      emailError,
+      emailPrepared: true,
+      emailSent: welcomeEmailResult.sent,
+      emailSkipped: welcomeEmailResult.skipped,
+      emailError: welcomeEmailResult.error,
       welcomeEmailAlreadySent: false,
-      passwordSetupLink,
+      emailResult: welcomeEmailResult.result,
     });
   } catch (error) {
     console.error("Account activation failed:", error);

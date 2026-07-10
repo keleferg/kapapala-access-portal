@@ -349,6 +349,18 @@ export async function GET() {
         created_at,
         updated_at,
         internal_notes,
+
+        applicant_first_name,
+        applicant_last_name,
+        applicant_email,
+        applicant_phone,
+
+        source_system,
+        sharepoint_item_id,
+        sharepoint_last_synced_at,
+        sharepoint_last_modified,
+        sharepoint_sync_status,
+
         applicant:profiles!access_accounts_profile_id_fkey (
           first_name,
           last_name,
@@ -381,11 +393,43 @@ export async function GET() {
       );
     }
 
-    const accounts = (data ?? []).map((account: any) => ({
-      ...account,
-      app_role: account.app_role ?? "user",
-      vehicles: account.vehicles ?? [],
-    }));
+    const accounts = (data ?? []).map((account: any) => {
+      const applicantFirstName =
+        account.applicant?.first_name ||
+        account.applicant_first_name ||
+        null;
+
+      const applicantLastName =
+        account.applicant?.last_name ||
+        account.applicant_last_name ||
+        null;
+
+      const applicantEmail =
+        account.applicant?.email ||
+        account.applicant_email ||
+        null;
+
+      const applicantPhone =
+        account.applicant?.phone ||
+        account.applicant_phone ||
+        null;
+
+      return {
+        ...account,
+        app_role: account.app_role ?? "user",
+        vehicles: account.vehicles ?? [],
+        applicant_first_name: applicantFirstName,
+        applicant_last_name: applicantLastName,
+        applicant_email: applicantEmail,
+        applicant_phone: applicantPhone,
+        applicant: account.applicant ?? {
+          first_name: applicantFirstName,
+          last_name: applicantLastName,
+          email: applicantEmail,
+          phone: applicantPhone,
+        },
+      };
+    });
 
     return NextResponse.json({
       success: true,

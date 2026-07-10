@@ -25,6 +25,8 @@ export async function GET(
       .select(`
         id,
         document_type,
+        storage_bucket,
+        storage_path,
         original_filename,
         mime_type,
         file_size,
@@ -137,14 +139,13 @@ export async function POST(
       );
     }
 
-    if (documentExpiration) {
       await (supabase as any)
-        .from("access_accounts")
-        .update({
-          id_expires_at: documentExpiration,
-        })
-        .eq("id", id);
-    }
+    .from("access_accounts")
+    .update({
+      id_document_path: storagePath,
+      id_expires_at: documentExpiration,
+    })
+    .eq("id", id);
 
     await (supabase as any).from("timeline_events").insert({
       access_account_id: id,
