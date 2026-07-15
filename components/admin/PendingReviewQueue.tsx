@@ -37,7 +37,10 @@ export default function PendingReviewQueue() {
   }
 
   return (
-    <Card title="Pending Access Account Reviews">
+    <Card
+      title="Pending Access Account Reviews"
+      className="admin-inner-card admin-queue-card"
+    >
       {loading && <p className="muted-text">Loading pending applications...</p>}
 
       {error && (
@@ -51,7 +54,16 @@ export default function PendingReviewQueue() {
       )}
 
       {!loading && !error && pendingAccounts.length === 0 && (
-        <p className="muted-text">No pending access account requests.</p>
+        <div className="admin-empty-state">
+          <span className="admin-empty-state__icon" aria-hidden="true">
+            ✓
+          </span>
+
+          <div>
+            <strong>Account review queue is clear</strong>
+            <p>No pending access account requests require attention.</p>
+          </div>
+        </div>
       )}
 
       {!loading && !error && pendingAccounts.length > 0 && (
@@ -70,7 +82,10 @@ export default function PendingReviewQueue() {
             const isApproving = approvingId === account.id;
 
             return (
-              <div className="review-card" key={account.id}>
+              <div
+                className="review-card admin-review-card"
+                key={account.id}
+              >
                 <div className="review-main">
                   <div className="review-avatar">🪪</div>
 

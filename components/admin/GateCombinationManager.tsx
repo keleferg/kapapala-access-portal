@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Card from "../ui/Card";
 import StatusBadge from "../ui/StatusBadge";
 import { getSupabaseClient } from "../../lib/supabaseClient";
+import GateAnalytics from "./GateAnalytics";
 
 type GateTone = "green" | "yellow" | "red";
 
@@ -16,7 +17,6 @@ type GateManagerRow = {
   today_combination: string | null;
   next_combination: string | null;
   next_combination_date: string | null;
-
   ibeacon_required: boolean | null;
   ibeacon_disabled_reason: string | null;
 };
@@ -133,6 +133,7 @@ export default function GateCombinationManager() {
   const [savingIBeaconGateId, setSavingIBeaconGateId] = useState<string | null>(
     null
   );
+  const [selectedGateId, setSelectedGateId] = useState<string | null>(null);
   const [messageByGate, setMessageByGate] = useState<Record<string, string>>(
     {}
   );
@@ -178,6 +179,13 @@ export default function GateCombinationManager() {
 
     setGates(rows);
     setForms(nextForms);
+
+    setSelectedGateId((current) =>
+      current && rows.some((gate) => gate.gate_id === current)
+        ? current
+        : null
+    );
+
     setLoading(false);
   }
 
@@ -256,14 +264,6 @@ export default function GateCombinationManager() {
         return;
       }
 
-      /*
-        The SharePoint bridge needs a stable comboId.
-
-        If the RPC returns the saved combination id, this will use it.
-        If not, it falls back to a predictable gate/date key so the
-        reverse bridge still has something stable to match on.
-      */
-
       const savedRow = Array.isArray(savedData) ? savedData[0] : savedData;
 
       const comboId =
@@ -303,13 +303,15 @@ export default function GateCombinationManager() {
       }
 
       await loadGateManager();
-    } catch (error) {
-      console.error("Gate save failed:", error);
+    } catch (saveError) {
+      console.error("Gate save failed:", saveError);
 
       setMessageByGate((current) => ({
         ...current,
         [gate.gate_id]:
-          error instanceof Error ? error.message : "Unable to save gate.",
+          saveError instanceof Error
+            ? saveError.message
+            : "Unable to save gate.",
       }));
     } finally {
       setSavingGateId(null);
@@ -327,9 +329,7 @@ export default function GateCombinationManager() {
         "Reason for disabling iBeacon requirement? Example: Beacon malfunction"
       );
 
-      if (!reason?.trim()) {
-        return;
-      }
+      if (!reason?.trim()) return;
     }
 
     setSavingIBeaconGateId(gate.gate_id);
@@ -367,7 +367,9 @@ export default function GateCombinationManager() {
             ? {
                 ...currentGate,
                 ibeacon_required: nextRequired,
-                ibeacon_disabled_reason: nextRequired ? null : reason?.trim() || null,
+                ibeacon_disabled_reason: nextRequired
+                  ? null
+                  : reason?.trim() || null,
               }
             : currentGate
         )
@@ -379,14 +381,14 @@ export default function GateCombinationManager() {
           ? "iBeacon requirement enabled."
           : "iBeacon requirement disabled for this gate.",
       }));
-    } catch (error) {
-      console.error("iBeacon requirement update failed:", error);
+    } catch (ibeaconError) {
+      console.error("iBeacon requirement update failed:", ibeaconError);
 
       setMessageByGate((current) => ({
         ...current,
         [gate.gate_id]:
-          error instanceof Error
-            ? error.message
+          ibeaconError instanceof Error
+            ? ibeaconError.message
             : "Unable to update iBeacon requirement.",
       }));
     } finally {
@@ -396,155 +398,263 @@ export default function GateCombinationManager() {
 
   if (loading) {
     return (
-      <div className="gate-manager-grid">
-        <Card title="Gate Combinations">
-          <p>Loading gate combinations...</p>
-        </Card>
-      </div>
+      <Card
+        title="Gate Combinations"
+        className="admin-inner-card admin-queue-card"
+      >
+        <p>Loading gate combinations...</p>
+      </Card>
     );
   }
 
   if (error) {
     return (
-      <div className="gate-manager-grid">
-        <Card title="Gate Combinations">
-          <p>Unable to load gate combinations.</p>
-          <p>{error}</p>
-        </Card>
-      </div>
+      <Card
+        title="Gate Combinations"
+        className="admin-inner-card admin-queue-card"
+      >
+        <p>Unable to load gate combinations.</p>
+        <p>{error}</p>
+      </Card>
     );
   }
 
   if (!gates.length) {
     return (
-      <div className="gate-manager-grid">
-        <Card title="Gate Combinations">
-          <p>No active gates were found.</p>
-        </Card>
-      </div>
+      <Card
+        title="Gate Combinations"
+        className="admin-inner-card admin-queue-card"
+      >
+        <p>No active gates were found.</p>
+      </Card>
     );
   }
 
+  const selectedGate =
+    gates.find((gate) => gate.gate_id === selectedGateId) || null;
+
+  const selectedForm = selectedGate
+    ? forms[selectedGate.gate_id]
+    : undefined;
+
   return (
-    <div className="gate-manager-grid">
-      {gates.map((gate) => {
-        const form = forms[gate.gate_id];
-        const ibeaconRequired = gate.ibeacon_required ?? true;
-        const isSavingCombination = savingGateId === gate.gate_id;
-        const isSavingIBeacon = savingIBeaconGateId === gate.gate_id;
+    <div className="gate-manager-layout">
+      <div className="gate-manager-grid">
+        {gates.map((gate) => {
+          const ibeaconRequired = gate.ibeacon_required ?? true;
+          const isSavingIBeacon = savingIBeaconGateId === gate.gate_id;
+          const isSelected = selectedGateId === gate.gate_id;
 
-        return (
-          <Card key={gate.gate_id} title={gate.gate_name || "Unnamed Gate"}>
-            <div className="gate-manager-header">
-              <StatusBadge
-                label={statusLabel(gate.gate_status)}
-                tone={statusTone(gate.gate_status)}
-              />
+          return (
+            <Card
+              key={gate.gate_id}
+              title={gate.gate_name || "Unnamed Gate"}
+              className={[
+                "gate-manager-card",
+                `gate-manager-card--${statusTone(gate.gate_status)}`,
+                isSelected ? "gate-manager-card--selected" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
+              <div className="gate-manager-header">
+                <StatusBadge
+                  label={statusLabel(gate.gate_status)}
+                  tone={statusTone(gate.gate_status)}
+                />
 
-              <span>{gateHoursLabel(gate.gate_name)}</span>
-            </div>
+                <span>{gateHoursLabel(gate.gate_name)}</span>
+              </div>
 
-            <div className="combo-box">
-              <span>Today&apos;s Combination</span>
-              <strong>{gate.today_combination || "—"}</strong>
-            </div>
+              <div className="gate-manager-summary">
+                <div className="combo-box combo-box--combination">
+                  <span>Today&apos;s Combination</span>
+                  <strong>{gate.today_combination || "—"}</strong>
+                </div>
 
-            <div className="combo-box">
-              <span>iBeacon Requirement</span>
+                <div className="combo-box combo-box--ibeacon">
+                  <span>iBeacon Requirement</span>
 
-              <strong>
-                {ibeaconRequired ? "Required" : "Bypassed"}
-              </strong>
+                  <strong>{ibeaconRequired ? "Required" : "Bypassed"}</strong>
 
-              <p className="muted">
-                {ibeaconRequired
-                  ? "Public users must be near this gate's iBeacon to reveal the code."
-                  : gate.ibeacon_disabled_reason
-                    ? `Bypass reason: ${gate.ibeacon_disabled_reason}`
-                    : "Public users can reveal the code without iBeacon detection."}
-              </p>
+                  <p className="muted">
+                    {ibeaconRequired
+                      ? "Proximity verification is required."
+                      : gate.ibeacon_disabled_reason
+                        ? `Bypass reason: ${gate.ibeacon_disabled_reason}`
+                        : "Proximity verification is bypassed."}
+                  </p>
+
+                  <button
+                    type="button"
+                    className={
+                      ibeaconRequired ? "button warning" : "button secondary"
+                    }
+                    onClick={() => void toggleIBeaconRequirement(gate)}
+                    disabled={isSavingIBeacon}
+                  >
+                    {isSavingIBeacon
+                      ? "Saving..."
+                      : ibeaconRequired
+                        ? "Disable iBeacon Requirement"
+                        : "Enable iBeacon Requirement"}
+                  </button>
+                </div>
+              </div>
 
               <button
                 type="button"
-                className={ibeaconRequired ? "button warning" : "button secondary"}
-                onClick={() => void toggleIBeaconRequirement(gate)}
-                disabled={isSavingIBeacon}
+                className="gate-manager-edit-button"
+                aria-expanded={isSelected}
+                onClick={() =>
+                  setSelectedGateId((current) =>
+                    current === gate.gate_id ? null : gate.gate_id
+                  )
+                }
               >
-                {isSavingIBeacon
-                  ? "Saving..."
-                  : ibeaconRequired
-                    ? "Disable iBeacon Requirement"
-                    : "Enable iBeacon Requirement"}
+                <span>
+                  <strong>
+                    {isSelected ? "Editing gate settings" : "Update gate settings"}
+                  </strong>
+                  <small>Combination, status, date, and public notice</small>
+                </span>
+
+                <span
+                  className="gate-manager-edit-button__icon"
+                  aria-hidden="true"
+                >
+                  {isSelected ? "×" : "→"}
+                </span>
               </button>
+            </Card>
+          );
+        })}
+      </div>
+
+      {selectedGate && selectedForm && (
+        <section className="gate-manager-editor">
+          <div className="gate-manager-editor__header">
+            <div>
+              <span className="gate-manager-editor__eyebrow">
+                Gate configuration
+              </span>
+
+              <h3>{selectedGate.gate_name || "Unnamed Gate"}</h3>
+
+              <p>
+                Update the next combination, gate status, effective date, and
+                public-facing notice.
+              </p>
             </div>
 
-            <form
-              className="single-column-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void saveGate(gate);
-              }}
+            <button
+              type="button"
+              className="gate-manager-editor__close"
+              aria-label="Close gate settings"
+              onClick={() => setSelectedGateId(null)}
             >
-              <label>
-                Date
-                <input
-                  type="date"
-                  value={form?.date || ""}
-                  onChange={(event) =>
-                    updateForm(gate.gate_id, "date", event.target.value)
-                  }
-                />
-              </label>
+              ×
+            </button>
+          </div>
 
-              <label>
-                Combination
-                <input
-                  value={form?.combination || ""}
-                  onChange={(event) =>
-                    updateForm(gate.gate_id, "combination", event.target.value)
-                  }
-                />
-              </label>
+          <form
+            className="gate-manager-editor__form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void saveGate(selectedGate);
+            }}
+          >
+            <label>
+              Date
+              <input
+                type="date"
+                value={selectedForm.date}
+                onChange={(event) =>
+                  updateForm(
+                    selectedGate.gate_id,
+                    "date",
+                    event.target.value
+                  )
+                }
+              />
+            </label>
 
-              <label>
-                Gate Status
-                <select
-                  value={form?.gateStatus || "Restricted"}
-                  onChange={(event) =>
-                    updateForm(gate.gate_id, "gateStatus", event.target.value)
-                  }
-                >
-                  <option value="Open">Open</option>
-                  <option value="Restricted">Restricted</option>
-                  <option value="Closed">Closed</option>
-                </select>
-              </label>
+            <label>
+              Combination
+              <input
+                value={selectedForm.combination}
+                onChange={(event) =>
+                  updateForm(
+                    selectedGate.gate_id,
+                    "combination",
+                    event.target.value
+                  )
+                }
+              />
+            </label>
 
-              <label>
-                Public Note
-                <textarea
-                  value={form?.notes || ""}
-                  onChange={(event) =>
-                    updateForm(gate.gate_id, "notes", event.target.value)
-                  }
-                />
-              </label>
+            <label>
+              Gate Status
+              <select
+                value={selectedForm.gateStatus}
+                onChange={(event) =>
+                  updateForm(
+                    selectedGate.gate_id,
+                    "gateStatus",
+                    event.target.value
+                  )
+                }
+              >
+                <option value="Open">Open</option>
+                <option value="Restricted">Restricted</option>
+                <option value="Closed">Closed</option>
+              </select>
+            </label>
+
+            <label className="gate-manager-editor__note">
+              Public Note
+              <textarea
+                value={selectedForm.notes}
+                onChange={(event) =>
+                  updateForm(
+                    selectedGate.gate_id,
+                    "notes",
+                    event.target.value
+                  )
+                }
+              />
+            </label>
+
+            <div className="gate-manager-editor__actions">
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => setSelectedGateId(null)}
+              >
+                Cancel
+              </button>
 
               <button
                 type="submit"
-                className="button primary form-button"
-                disabled={isSavingCombination}
+                className="button primary"
+                disabled={savingGateId === selectedGate.gate_id}
               >
-                {isSavingCombination ? "Saving..." : "Save Gate Combination"}
+                {savingGateId === selectedGate.gate_id
+                  ? "Saving..."
+                  : "Save Gate Combination"}
               </button>
+            </div>
 
-              {messageByGate[gate.gate_id] ? (
-                <p className="form-message">{messageByGate[gate.gate_id]}</p>
-              ) : null}
-            </form>
-          </Card>
-        );
-      })}
+            {messageByGate[selectedGate.gate_id] ? (
+              <p className="form-message gate-manager-editor__message">
+                {messageByGate[selectedGate.gate_id]}
+              </p>
+            ) : null}
+          </form>
+        </section>
+      )}
+
+      <GateAnalytics />
     </div>
   );
 }
