@@ -236,7 +236,10 @@ export default function DailyAccessQueue() {
   }
 
   return (
-    <Card title="Daily Access Request Queue">
+    <Card
+      title="Daily Access Request Queue"
+      className="admin-inner-card admin-queue-card"
+    >
       <div className="admin-toolbar">
         <div>
           <strong>Daily access requests</strong>
@@ -248,7 +251,7 @@ export default function DailyAccessQueue() {
         </button>
       </div>
 
-      <div className="admin-toolbar" style={{ justifyContent: "flex-start" }}>
+      <div className="admin-toolbar admin-subtabs">
         {(["today", "future", "past"] as RequestTab[]).map((tab) => {
           const count =
             tab === "today"
@@ -261,7 +264,9 @@ export default function DailyAccessQueue() {
             <button
               key={tab}
               type="button"
-              className={`button ${activeTab === tab ? "" : "secondary"}`}
+              className={`admin-subtab ${
+                activeTab === tab ? "active" : ""
+              }`}
               onClick={() => setActiveTab(tab)}
             >
               {tabLabel(tab)} ({count})
@@ -280,9 +285,19 @@ export default function DailyAccessQueue() {
       )}
 
       {!loading && !errorMessage && filteredRequests.length === 0 && (
-        <p className="muted-text">
-          No {tabLabel(activeTab).toLowerCase()} daily access requests.
-        </p>
+        <div className="admin-empty-state">
+          <span className="admin-empty-state__icon" aria-hidden="true">
+            ✓
+          </span>
+
+          <div>
+            <strong>No {tabLabel(activeTab).toLowerCase()} requests</strong>
+            <p>
+              There are no {tabLabel(activeTab).toLowerCase()} daily access
+              requests in this queue.
+            </p>
+          </div>
+        </div>
       )}
 
       {!loading && !errorMessage && filteredRequests.length > 0 && (

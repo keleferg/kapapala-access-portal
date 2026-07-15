@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 
 type MetricTone = "ok" | "watch" | "alert";
+type MetricIconName = "operations" | "pending" | "accounts" | "gates";
 
 type ActivityMetric = {
   label: string;
@@ -11,39 +12,82 @@ type ActivityMetric = {
   note: string;
   badge: string;
   tone: MetricTone;
+  icon: MetricIconName;
 };
 
+function MetricIcon({ name }: { name: MetricIconName }) {
+  if (name === "operations") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="5" width="16" height="15" rx="2" />
+        <path d="M8 3v4M16 3v4M4 10h16M8 14h3M8 17h6" />
+      </svg>
+    );
+  }
+
+  if (name === "pending") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2M8 3l-3 3M16 3l3 3" />
+      </svg>
+    );
+  }
+
+  if (name === "accounts") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="8" r="4" />
+        <path d="M5 21v-2a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v2" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <path d="M8 3v18M16 3v18M10 12h4" />
+    </svg>
+  );
+}
+
+const initialMetrics: ActivityMetric[] = [
+  {
+    label: "Today’s Operations",
+    value: "—",
+    note: "Loading today’s requests",
+    badge: "LIVE",
+    tone: "ok",
+    icon: "operations",
+  },
+  {
+    label: "Pending Access Requests",
+    value: "—",
+    note: "Awaiting administrative action",
+    badge: "WATCH",
+    tone: "watch",
+    icon: "pending",
+  },
+  {
+    label: "Active Accounts",
+    value: "—",
+    note: "Approved access accounts",
+    badge: "OK",
+    tone: "ok",
+    icon: "accounts",
+  },
+  {
+    label: "Gate Status",
+    value: "—",
+    note: "Loading gate conditions",
+    badge: "LIVE",
+    tone: "ok",
+    icon: "gates",
+  },
+];
+
 export default function LiveActivityBar() {
-  const [metrics, setMetrics] = useState<ActivityMetric[]>([
-    {
-      label: "New Account Requests",
-      value: "—",
-      note: "Awaiting review",
-      badge: "WATCH",
-      tone: "watch",
-    },
-    {
-      label: "Daily Requests Today",
-      value: "—",
-      note: "Ready to approve",
-      badge: "OK",
-      tone: "ok",
-    },
-    {
-      label: "Entries Today",
-      value: "—",
-      note: "Gate codes viewed",
-      badge: "OK",
-      tone: "ok",
-    },
-    {
-      label: "Gate Status",
-      value: "All Open",
-      note: "No restrictions",
-      badge: "OK",
-      tone: "ok",
-    },
-  ]);
+  const [metrics, setMetrics] = useState<ActivityMetric[]>(initialMetrics);
 
   useEffect(() => {
     void loadLiveActivity();
@@ -68,14 +112,21 @@ export default function LiveActivityBar() {
 
     const [
       pendingAccountsResult,
+      activeAccountsResult,
       todaysRequestsResult,
-      pendingTodayResult,
+      pendingAccessResult,
       entriesTodayResult,
+      gatesResult,
     ] = await Promise.all([
       supabase
         .from("access_accounts")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending"),
+
+      supabase
+        .from("access_accounts")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "active"),
 
       supabase
         .from("daily_access_requests")
@@ -86,216 +137,168 @@ export default function LiveActivityBar() {
         .from("daily_access_requests")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending")
-        .eq("request_date", today),
+        .gte("request_date", today),
 
       supabase
         .from("gate_code_reveals")
         .select("id", { count: "exact", head: true })
         .gte("created_at", `${today}T00:00:00-10:00`)
         .lt("created_at", `${tomorrow}T00:00:00-10:00`),
+
+      supabase.from("gates").select("status").eq("active", true),
     ]);
 
-    if (
-      pendingAccountsResult.error ||
-      todaysRequestsResult.error ||
-      pendingTodayResult.error ||
-      entriesTodayResult.error
-    ) {
-      console.error("Unable to load live activity:", {
-        pendingAccountsError: pendingAccountsResult.error,
-        todaysRequestsError: todaysRequestsResult.error,
-        pendingTodayError: pendingTodayResult.error,
-        entriesTodayError: entriesTodayResult.error,
-      });
+    const errors = [
+      pendingAccountsResult.error,
+      activeAccountsResult.error,
+      todaysRequestsResult.error,
+      pendingAccessResult.error,
+      entriesTodayResult.error,
+      gatesResult.error,
+    ].filter(Boolean);
 
-      setMetrics((currentMetrics) =>
-        currentMetrics.map((metric) =>
-          metric.label === "New Account Requests" ||
-          metric.label === "Daily Requests Today" ||
-          metric.label === "Entries Today"
-            ? {
-                ...metric,
-                value: "!",
-                note: "Unable to load",
-                badge: "WATCH",
-                tone: "watch",
-              }
-            : metric
-        )
+    if (errors.length > 0) {
+      console.error("Unable to load dashboard activity:", errors);
+
+      setMetrics(
+        initialMetrics.map((metric) => ({
+          ...metric,
+          value: "!",
+          note: "Unable to load this metric",
+          badge: "WATCH",
+          tone: "watch",
+        }))
       );
 
       return;
     }
 
     const pendingAccounts = pendingAccountsResult.count ?? 0;
+    const activeAccounts = activeAccountsResult.count ?? 0;
     const todaysRequests = todaysRequestsResult.count ?? 0;
-    const pendingToday = pendingTodayResult.count ?? 0;
+    const pendingAccess = pendingAccessResult.count ?? 0;
     const entriesToday = entriesTodayResult.count ?? 0;
+
+    const gateRows = (gatesResult.data ?? []) as Array<{
+      status: string | null;
+    }>;
+
+    const totalGates = gateRows.length;
+    const openGates = gateRows.filter(
+      (gate) => gate.status?.toLowerCase() === "open"
+    ).length;
+    const restrictedGates = gateRows.filter(
+      (gate) => gate.status?.toLowerCase() === "restricted"
+    ).length;
+    const closedGates = gateRows.filter(
+      (gate) => gate.status?.toLowerCase() === "closed"
+    ).length;
+
+    let gateValue = "All Open";
+    let gateBadge = "OK";
+    let gateTone: MetricTone = "ok";
+
+    if (closedGates > 0) {
+      gateValue = `${closedGates} Closed`;
+      gateBadge = "ALERT";
+      gateTone = "alert";
+    } else if (restrictedGates > 0) {
+      gateValue = `${restrictedGates} Restricted`;
+      gateBadge = "WATCH";
+      gateTone = "watch";
+    } else if (totalGates === 0) {
+      gateValue = "—";
+      gateBadge = "WATCH";
+      gateTone = "watch";
+    }
 
     setMetrics([
       {
-        label: "New Account Requests",
-        value: String(pendingAccounts),
-        note: "Awaiting review",
-        badge: pendingAccounts > 0 ? "WATCH" : "OK",
-        tone: pendingAccounts > 0 ? "watch" : "ok",
-      },
-      {
-        label: "Daily Requests Today",
+        label: "Today’s Operations",
         value: String(todaysRequests),
         note:
-          pendingToday === 1
-            ? "1 ready to approve"
-            : `${pendingToday} ready to approve`,
-        badge: pendingToday > 0 ? "WATCH" : "OK",
-        tone: pendingToday > 0 ? "watch" : "ok",
+          entriesToday === 1
+            ? "1 gate code revealed today"
+            : `${entriesToday} gate codes revealed today`,
+        badge: "LIVE",
+        tone: "ok",
+        icon: "operations",
       },
       {
-        label: "Entries Today",
-        value: String(entriesToday),
+        label: "Pending Access Requests",
+        value: String(pendingAccess),
         note:
-          entriesToday === 1
-            ? "1 gate code viewed"
-            : `${entriesToday} gate codes viewed`,
-        badge: "OK",
-        tone: "ok",
+          pendingAccess === 1
+            ? "1 request awaiting action"
+            : `${pendingAccess} requests awaiting action`,
+        badge: pendingAccess > 0 ? "WATCH" : "OK",
+        tone: pendingAccess > 0 ? "watch" : "ok",
+        icon: "pending",
+      },
+      {
+        label: "Active Accounts",
+        value: String(activeAccounts),
+        note:
+          pendingAccounts === 1
+            ? "1 new account application"
+            : `${pendingAccounts} new account applications`,
+        badge: pendingAccounts > 0 ? "WATCH" : "OK",
+        tone: pendingAccounts > 0 ? "watch" : "ok",
+        icon: "accounts",
       },
       {
         label: "Gate Status",
-        value: "All Open",
-        note: "No restrictions",
-        badge: "OK",
-        tone: "ok",
+        value: gateValue,
+        note:
+          totalGates > 0
+            ? `${openGates} of ${totalGates} gates currently open`
+            : "No active gates were returned",
+        badge: gateBadge,
+        tone: gateTone,
+        icon: "gates",
       },
     ]);
   }
 
   return (
     <section
-      style={{
-        display: "grid",
-        gridTemplateColumns: "220px repeat(4, minmax(160px, 1fr))",
-        gap: "12px",
-        alignItems: "stretch",
-        background: "#123f22",
-        borderRadius: "20px",
-        padding: "18px",
-        marginTop: "22px",
-        marginBottom: "28px",
-        color: "white",
-      }}
+      className="admin-metrics"
+      aria-labelledby="admin-metrics-heading"
     >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          borderRight: "1px solid rgba(255, 255, 255, 0.22)",
-          paddingRight: "18px",
-        }}
-      >
-        <div
-          style={{
-            color: "#f2b544",
-            fontSize: "0.72rem",
-            fontWeight: 800,
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            marginBottom: "6px",
-          }}
-        >
-          Live Activity
+      <div className="admin-section-heading">
+        <div>
+          <span>Live activity</span>
+          <h2 id="admin-metrics-heading">Today&apos;s operations</h2>
         </div>
 
-        <div
-          style={{
-            fontSize: "1.35rem",
-            fontWeight: 800,
-            lineHeight: 1.1,
-          }}
-        >
-          Today&apos;s Operations
-        </div>
+        <p>Current activity in Hawaiʻi Standard Time</p>
       </div>
 
-      {metrics.map((metric) => (
-        <div
-          key={metric.label}
-          style={{
-            position: "relative",
-            background: "rgba(255, 255, 255, 0.17)",
-            border: "1px solid rgba(255, 255, 255, 0.22)",
-            borderRadius: "16px",
-            padding: "14px 14px 13px",
-            minHeight: "88px",
-            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              top: "14px",
-              right: "14px",
-              borderRadius: "999px",
-              padding: "7px 13px",
-              background:
-                metric.tone === "watch"
-                  ? "#eee3bd"
-                  : metric.tone === "alert"
-                    ? "#f2c4bd"
-                    : "#cfe6d0",
-              color:
-                metric.tone === "watch"
-                  ? "#6b5200"
-                  : metric.tone === "alert"
-                    ? "#7c1f18"
-                    : "#1e4a2a",
-              fontSize: "0.72rem",
-              fontWeight: 800,
-              letterSpacing: "0.04em",
-            }}
+      <div className="admin-metrics__grid">
+        {metrics.map((metric) => (
+          <article
+            key={metric.label}
+            className={`admin-metric-card admin-metric-card--${metric.tone}`}
           >
-            {metric.badge}
-          </div>
+            <div className="admin-metric-card__top">
+              <span className="admin-metric-card__icon">
+                <MetricIcon name={metric.icon} />
+              </span>
 
-          <div
-            style={{
-              maxWidth: "115px",
-              fontSize: "0.76rem",
-              fontWeight: 800,
-              letterSpacing: "0.04em",
-              lineHeight: 1.1,
-              textTransform: "uppercase",
-              opacity: 0.95,
-              marginBottom: "8px",
-            }}
-          >
-            {metric.label}
-          </div>
+              <span className="admin-metric-card__badge">
+                <span />
+                {metric.badge}
+              </span>
+            </div>
 
-          <div
-            style={{
-              fontSize: metric.label === "Gate Status" ? "1.3rem" : "1.65rem",
-              fontWeight: 900,
-              lineHeight: 1,
-              marginBottom: "8px",
-            }}
-          >
-            {metric.value}
-          </div>
+            <span className="admin-metric-card__label">{metric.label}</span>
 
-          <div
-            style={{
-              fontSize: "0.78rem",
-              fontWeight: 600,
-              opacity: 0.9,
-              lineHeight: 1.2,
-            }}
-          >
-            {metric.note}
-          </div>
-        </div>
-      ))}
+            <strong className="admin-metric-card__value">{metric.value}</strong>
+
+            <p>{metric.note}</p>
+          </article>
+        ))}
+      </div>
     </section>
   );
 }
