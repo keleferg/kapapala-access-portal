@@ -251,6 +251,7 @@ export async function POST(_request: NextRequest, context: RouteContext) {
         access_id: accessId,
         status: "active",
         profile_id: existingAccount.profile_id || authUserId,
+        issued_at: existingAccount.issued_at || now.toISOString(),
         reviewed_at: now.toISOString(),
         revalidated_at: now.toISOString(),
         expires_at: expiresAt.toISOString().slice(0, 10),
@@ -268,6 +269,21 @@ export async function POST(_request: NextRequest, context: RouteContext) {
         },
         { status: 500 }
       );
+    }
+
+    if (existingAccount.status !== "active") {
+      const { error: timelineError } = await supabase
+        .from("timeline_events")
+        .insert({
+          access_account_id: accountId,
+          event_type: "access_account_approved",
+          event_title: "Access Account Approved",
+          event_body: `Access account approved and Access ID ${accessId} issued.`,
+        });
+
+      if (timelineError) {
+        console.warn("Unable to create approval timeline event:", timelineError);
+      }
     }
 
     if (!email) {

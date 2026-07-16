@@ -12,8 +12,18 @@ type AccessAccountRow = {
   applicant_first_name: string | null;
   applicant_last_name: string | null;
   applicant_email: string | null;
+  expires_at: string | null;
   welcome_email_sent_at: string | null;
 };
+
+const PORTAL_BASE_URL =
+  "https://kapapalaforestreserveaccesssystem.netlify.app";
+
+const LOGIN_URL = `${PORTAL_BASE_URL}/login`;
+const PASSWORD_SETUP_URL = `${PORTAL_BASE_URL}/set-password`;
+const ACCESS_RULES_URL =
+  `${PORTAL_BASE_URL}/information/forest-reserve-access`;
+const LOGO_URL = `${PORTAL_BASE_URL}/kapapala-access-logo.png`;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,7 +41,13 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return jsonResponse({ success: false, error: "Method not allowed." }, 405);
+    return jsonResponse(
+      {
+        success: false,
+        error: "Method not allowed.",
+      },
+      405
+    );
   }
 
   try {
@@ -99,6 +115,7 @@ serve(async (req: Request) => {
         applicant_first_name,
         applicant_last_name,
         applicant_email,
+        expires_at,
         welcome_email_sent_at
       `
       )
@@ -124,7 +141,7 @@ serve(async (req: Request) => {
       return jsonResponse({
         success: true,
         skipped: true,
-        reason: "Welcome email already sent.",
+        reason: "Approval email already sent.",
         welcome_email_sent_at: account.welcome_email_sent_at,
       });
     }
@@ -135,7 +152,8 @@ serve(async (req: Request) => {
       await supabase
         .from("access_accounts")
         .update({
-          welcome_email_last_error: "Access account has no applicant_email.",
+          welcome_email_last_error:
+            "Access account has no applicant_email.",
         })
         .eq("id", accessAccountId);
 
@@ -153,12 +171,23 @@ serve(async (req: Request) => {
 
     const accessId = account.access_id?.trim() || "Not assigned";
 
-    const subject = "Welcome to Kapāpala Forest Reserve Access";
+    const expirationDate = formatExpirationDate(account.expires_at);
 
-    const html = buildWelcomeEmailHtml({
+    const subject =
+      "Your Kapāpala Forest Reserve Access Account Has Been Approved";
+
+    const html = buildApprovalEmailHtml({
       firstName,
       accessId,
       email: recipientEmail,
+      expirationDate,
+    });
+
+    const text = buildApprovalEmailText({
+      firstName,
+      accessId,
+      email: recipientEmail,
+      expirationDate,
     });
 
     const resendResponse = await fetch("https://api.resend.com/emails", {
@@ -172,6 +201,7 @@ serve(async (req: Request) => {
         to: recipientEmail,
         subject,
         html,
+        text,
       }),
     });
 
@@ -211,7 +241,8 @@ serve(async (req: Request) => {
       return jsonResponse(
         {
           success: false,
-          error: `Email sent, but database update failed: ${updateError.message}`,
+          error:
+            `Email sent, but database update failed: ${updateError.message}`,
           resend: resendResult,
         },
         500
@@ -257,57 +288,483 @@ async function safeReadJson(response: Response): Promise<unknown> {
   }
 }
 
-function buildWelcomeEmailHtml({
+function formatExpirationDate(value: string | null): string {
+  if (!value) {
+    return "Two years from the approval date";
+  }
+
+  const datePart = value.slice(0, 10);
+  const parts = datePart.split("-").map(Number);
+
+  if (
+    parts.length !== 3 ||
+    !Number.isFinite(parts[0]) ||
+    !Number.isFinite(parts[1]) ||
+    !Number.isFinite(parts[2])
+  ) {
+    return value;
+  }
+
+  const [year, month, day] = parts;
+
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "Pacific/Honolulu",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(date);
+}
+
+function buildApprovalEmailHtml({
   firstName,
   accessId,
   email,
+  expirationDate,
 }: {
   firstName: string;
   accessId: string;
   email: string;
+  expirationDate: string;
 }): string {
   return `
-    <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #1f2933;">
-      <p>Aloha ${escapeHtml(firstName)},</p>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kapāpala Access Account Approved</title>
+  </head>
 
-      <p>
-        Welcome to the Kapāpala Forest Reserve Access system. Your access account is active.
-      </p>
-
-      <p>
-        <strong>Your Access ID:</strong> ${escapeHtml(accessId)}
-      </p>
-
-      <p>
-        You can find access information, rules, and safety guidance here:
-        <br />
-        <a href="https://kapapalaranch.com/forest-reserve-access">
-          https://kapapalaranch.com/forest-reserve-access
-        </a>
-      </p>
-
-      <p>
-        Please remember that your account must be revalidated every two years,
-        and all access users must follow the rules published on the website.
-      </p>
-
-      <p>
-        To use the app, sign in with this email address:
-        <br />
-        <strong>${escapeHtml(email)}</strong>
-      </p>
-
-      <p>
-        If you have not set your password yet, use the app's forgot password
-        or password setup process.
-      </p>
-
-      <p>
-        Mahalo,<br />
-        Kapāpala Ranch
-      </p>
+  <body style="margin:0; padding:0; background:#f2f0e9;">
+    <div
+      style="
+        display:none;
+        max-height:0;
+        overflow:hidden;
+        opacity:0;
+        color:transparent;
+      "
+    >
+      Your Kapāpala Forest Reserve Access Account has been approved.
     </div>
+
+    <table
+      role="presentation"
+      width="100%"
+      cellspacing="0"
+      cellpadding="0"
+      border="0"
+      style="background:#f2f0e9;"
+    >
+      <tr>
+        <td align="center" style="padding:28px 12px;">
+          <table
+            role="presentation"
+            width="100%"
+            cellspacing="0"
+            cellpadding="0"
+            border="0"
+            style="
+              width:100%;
+              max-width:640px;
+              background:#ffffff;
+              border:1px solid #dedbd1;
+              border-radius:16px;
+              overflow:hidden;
+            "
+          >
+            <tr>
+              <td align="center" style="padding:30px 28px 24px;">
+                <img
+                  src="${LOGO_URL}"
+                  alt="Kapāpala Ranch"
+                  width="390"
+                  style="
+                    display:block;
+                    width:100%;
+                    max-width:390px;
+                    height:auto;
+                    border:0;
+                  "
+                />
+              </td>
+            </tr>
+
+            <tr>
+              <td
+                align="center"
+                style="
+                  padding:30px 34px;
+                  background:#23452f;
+                  color:#ffffff;
+                "
+              >
+                <div
+                  style="
+                    font-family:Arial,Helvetica,sans-serif;
+                    font-size:13px;
+                    font-weight:700;
+                    letter-spacing:1.6px;
+                    text-transform:uppercase;
+                    color:#d7c59a;
+                  "
+                >
+                  Kapāpala Forest Reserve Access System
+                </div>
+
+                <h1
+                  style="
+                    margin:10px 0 0;
+                    font-family:Georgia,'Times New Roman',serif;
+                    font-size:32px;
+                    line-height:1.2;
+                    color:#ffffff;
+                  "
+                >
+                  Your Account Has Been Approved
+                </h1>
+              </td>
+            </tr>
+
+            <tr>
+              <td
+                style="
+                  padding:34px;
+                  font-family:Arial,Helvetica,sans-serif;
+                  font-size:16px;
+                  line-height:1.65;
+                  color:#26332b;
+                "
+              >
+                <p style="margin:0 0 18px;">
+                  Aloha ${escapeHtml(firstName)},
+                </p>
+
+                <p style="margin:0 0 22px;">
+                  Your Kapāpala Forest Reserve Access Account has been
+                  reviewed, approved, and activated. You may now sign in and
+                  submit access requests, subject to current access rules,
+                  gate conditions, and approval requirements.
+                </p>
+
+                <table
+                  role="presentation"
+                  width="100%"
+                  cellspacing="0"
+                  cellpadding="0"
+                  border="0"
+                  style="
+                    margin:0 0 26px;
+                    background:#f6f3e9;
+                    border:1px solid #ded5bd;
+                    border-left:5px solid #b88a34;
+                    border-radius:10px;
+                  "
+                >
+                  <tr>
+                    <td style="padding:22px;">
+                      <div
+                        style="
+                          margin-bottom:5px;
+                          font-size:12px;
+                          font-weight:700;
+                          letter-spacing:1.2px;
+                          text-transform:uppercase;
+                          color:#657069;
+                        "
+                      >
+                        Your Access ID
+                      </div>
+
+                      <div
+                        style="
+                          font-family:Georgia,'Times New Roman',serif;
+                          font-size:34px;
+                          font-weight:700;
+                          letter-spacing:4px;
+                          color:#23452f;
+                        "
+                      >
+                        ${escapeHtml(accessId)}
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+
+                <table
+                  role="presentation"
+                  width="100%"
+                  cellspacing="0"
+                  cellpadding="0"
+                  border="0"
+                  style="
+                    margin:0 0 28px;
+                    border-collapse:collapse;
+                    border-top:1px solid #e5e2d9;
+                  "
+                >
+                  <tr>
+                    <td
+                      style="
+                        width:38%;
+                        padding:13px 0;
+                        border-bottom:1px solid #e5e2d9;
+                        color:#657069;
+                        font-size:14px;
+                      "
+                    >
+                      Sign-in email
+                    </td>
+
+                    <td
+                      style="
+                        padding:13px 0;
+                        border-bottom:1px solid #e5e2d9;
+                        font-weight:700;
+                        color:#26332b;
+                      "
+                    >
+                      ${escapeHtml(email)}
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td
+                      style="
+                        width:38%;
+                        padding:13px 0;
+                        border-bottom:1px solid #e5e2d9;
+                        color:#657069;
+                        font-size:14px;
+                      "
+                    >
+                      Account expiration
+                    </td>
+
+                    <td
+                      style="
+                        padding:13px 0;
+                        border-bottom:1px solid #e5e2d9;
+                        font-weight:700;
+                        color:#26332b;
+                      "
+                    >
+                      ${escapeHtml(expirationDate)}
+                    </td>
+                  </tr>
+                </table>
+
+                <h2
+                  style="
+                    margin:0 0 10px;
+                    font-family:Georgia,'Times New Roman',serif;
+                    font-size:22px;
+                    color:#23452f;
+                  "
+                >
+                  Set up your password
+                </h2>
+
+                <p style="margin:0 0 22px;">
+                  First-time users should select
+                  <strong>Set Up Password</strong>. On the password setup page,
+                  enter the same email address shown above and follow the
+                  secure instructions sent to your inbox. If you already
+                  created a password, select <strong>Sign In</strong>.
+                </p>
+
+                <table
+                  role="presentation"
+                  cellspacing="0"
+                  cellpadding="0"
+                  border="0"
+                  style="margin:0 0 14px;"
+                >
+                  <tr>
+                    <td
+                      align="center"
+                      bgcolor="#23452f"
+                      style="border-radius:8px;"
+                    >
+                      <a
+                        href="${PASSWORD_SETUP_URL}"
+                        style="
+                          display:inline-block;
+                          padding:14px 24px;
+                          font-family:Arial,Helvetica,sans-serif;
+                          font-size:15px;
+                          font-weight:700;
+                          color:#ffffff;
+                          text-decoration:none;
+                        "
+                      >
+                        Set Up Password
+                      </a>
+                    </td>
+
+                    <td style="width:12px;"></td>
+
+                    <td
+                      align="center"
+                      style="
+                        border:1px solid #23452f;
+                        border-radius:8px;
+                      "
+                    >
+                      <a
+                        href="${LOGIN_URL}"
+                        style="
+                          display:inline-block;
+                          padding:13px 24px;
+                          font-family:Arial,Helvetica,sans-serif;
+                          font-size:15px;
+                          font-weight:700;
+                          color:#23452f;
+                          text-decoration:none;
+                        "
+                      >
+                        Sign In
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <p
+                  style="
+                    margin:18px 0 26px;
+                    font-size:13px;
+                    line-height:1.55;
+                    color:#657069;
+                  "
+                >
+                  For security, never share your password. Keep your Access ID
+                  available when communicating with Kapāpala Ranch Operations.
+                </p>
+
+                <div
+                  style="
+                    padding:20px;
+                    background:#f3f6f3;
+                    border-radius:10px;
+                  "
+                >
+                  <strong style="color:#23452f;">
+                    Review access rules before requesting entry
+                  </strong>
+
+                  <p style="margin:8px 0 14px;">
+                    Gate conditions, access hours, permit requirements, and
+                    other rules may change. Review the current information
+                    before every visit.
+                  </p>
+
+                  <a
+                    href="${ACCESS_RULES_URL}"
+                    style="
+                      color:#23452f;
+                      font-weight:700;
+                      text-decoration:underline;
+                    "
+                  >
+                    View Forest Reserve Access Information
+                  </a>
+                </div>
+
+                <p style="margin:28px 0 0;">
+                  Mahalo for helping protect Kapāpala and support safe,
+                  responsible access to the Forest Reserve.
+                </p>
+
+                <p style="margin:18px 0 0;">
+                  Mahalo,<br />
+                  <strong>Kapāpala Ranch Operations</strong>
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td
+                align="center"
+                style="
+                  padding:22px 28px;
+                  background:#ece9df;
+                  font-family:Arial,Helvetica,sans-serif;
+                  font-size:12px;
+                  line-height:1.55;
+                  color:#657069;
+                "
+              >
+                Kapāpala Forest Reserve Access System<br />
+
+                <a
+                  href="${PORTAL_BASE_URL}"
+                  style="color:#23452f; text-decoration:underline;"
+                >
+                  ${PORTAL_BASE_URL}
+                </a>
+
+                <br /><br />
+
+                This message was sent because an access account associated
+                with ${escapeHtml(email)} was approved.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
   `;
+}
+
+function buildApprovalEmailText({
+  firstName,
+  accessId,
+  email,
+  expirationDate,
+}: {
+  firstName: string;
+  accessId: string;
+  email: string;
+  expirationDate: string;
+}): string {
+  return `Aloha ${firstName},
+
+YOUR KAPĀPALA FOREST RESERVE ACCESS ACCOUNT HAS BEEN APPROVED
+
+Your account has been reviewed, approved, and activated. You may now sign in and submit access requests, subject to current access rules, gate conditions, and approval requirements.
+
+Access ID: ${accessId}
+Sign-in email: ${email}
+Account expiration: ${expirationDate}
+
+SET UP YOUR PASSWORD
+
+First-time users should open the password setup page below, enter the same email address shown above, and follow the secure instructions sent to their inbox:
+
+${PASSWORD_SETUP_URL}
+
+If you already created a password, sign in here:
+
+${LOGIN_URL}
+
+Review current access information and rules before every visit:
+
+${ACCESS_RULES_URL}
+
+Kapāpala Forest Reserve Access Portal:
+
+${PORTAL_BASE_URL}
+
+Never share your password. Keep your Access ID available when communicating with Kapāpala Ranch Operations.
+
+Mahalo for helping protect Kapāpala and support safe, responsible access to the Forest Reserve.
+
+Mahalo,
+Kapāpala Ranch Operations`;
 }
 
 function escapeHtml(value: string): string {
