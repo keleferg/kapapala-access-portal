@@ -2,6 +2,7 @@ import Link from "next/link";
 import AppShell from "../../components/layout/AppShell";
 import AdminOperationsTabs from "../../components/admin/AdminOperationsTabs";
 import LiveActivityBar from "../../components/admin/LiveActivityBar";
+import AdminTodayPermitsCard from "../../components/admin/AdminTodayPermitsCard";
 
 const quickActions = [
   {
@@ -147,6 +148,8 @@ export default function AdminPage() {
         </section>
 
         <LiveActivityBar />
+
+        <AdminTodayPermitsCard />
 
         <section className="admin-workspace">
           <div className="admin-section-heading">
