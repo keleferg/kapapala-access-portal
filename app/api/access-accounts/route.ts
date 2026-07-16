@@ -1,3 +1,4 @@
+import { randomInt } from "crypto";
 import { NextResponse } from "next/server";
 import {
   getSupabaseAdmin,
@@ -34,28 +35,32 @@ type AccessAccountPayload = {
   }[];
 };
 
-async function getNextAccessId(supabase: any) {
-  const { data, error } = await supabase
-    .from("access_accounts")
-    .select("access_id")
-    .not("access_id", "is", null);
+async function generateUniqueAccessId(supabase: any) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    // IDs 99900–99999 are reserved exclusively for testing.
+    // randomInt's upper bound is exclusive.
+    const candidate = String(randomInt(10000, 99900));
 
-  if (error) {
-    throw new Error(error.message || "Unable to determine next Access ID.");
+    const { data, error } = await supabase
+      .from("access_accounts")
+      .select("id")
+      .eq("access_id", candidate)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(
+        error.message || "Unable to verify Access ID availability."
+      );
+    }
+
+    if (!data) {
+      return candidate;
+    }
   }
 
-  const highestAccessId = (data ?? [])
-    .map((row: { access_id: string | null }) => row.access_id)
-    .filter((accessId: string | null): accessId is string =>
-      Boolean(accessId && /^[0-9]+$/.test(accessId))
-    )
-    .map((accessId: string) => Number.parseInt(accessId, 10))
-    .filter((accessId: number) => Number.isFinite(accessId))
-    .reduce((highest: number, accessId: number) => {
-      return accessId > highest ? accessId : highest;
-    }, 0);
-
-  return String(highestAccessId + 1);
+  throw new Error(
+    "Unable to generate a unique production Access ID after 100 attempts."
+  );
 }
 
 async function findExistingAuthUserIdByEmail(supabase: any, email: string) {
@@ -219,7 +224,7 @@ export async function POST(request: Request) {
     let account = existingAccount;
 
     if (!account) {
-      const nextAccessId = await getNextAccessId(supabase);
+      const nextAccessId = await generateUniqueAccessId(supabase);
 
       const { data: newAccount, error: accountError } = await (supabase as any)
         .from("access_accounts")
@@ -253,7 +258,7 @@ export async function POST(request: Request) {
 
       account = newAccount;
     } else if (!account.access_id) {
-      const nextAccessId = await getNextAccessId(supabase);
+      const nextAccessId = await generateUniqueAccessId(supabase);
 
       const { data: updatedAccount, error: updateAccountError } = await (
         supabase as any

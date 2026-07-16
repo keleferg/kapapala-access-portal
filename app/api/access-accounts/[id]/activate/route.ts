@@ -1,3 +1,4 @@
+import { randomInt } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -18,7 +19,9 @@ function createAdminClient() {
 }
 
 function randomAccessId() {
-  return String(Math.floor(Math.random() * (99998 - 10000 + 1)) + 10000);
+  // IDs 99900–99999 are reserved exclusively for testing.
+  // randomInt's upper bound is exclusive.
+  return String(randomInt(10000, 99900));
 }
 
 async function generateUniqueAccessId(
