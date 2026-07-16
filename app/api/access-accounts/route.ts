@@ -199,7 +199,7 @@ export async function POST(request: Request) {
     let account = existingAccount;
 
     if (!account) {
-      const nextAccessId = body.adminCreated ? await getNextAccessId(supabase) : null;
+      const nextAccessId = await getNextAccessId(supabase);
 
       const { data: newAccount, error: accountError } = await (supabase as any)
         .from("access_accounts")
@@ -228,7 +228,7 @@ export async function POST(request: Request) {
       }
 
       account = newAccount;
-    } else if (body.adminCreated && !account.access_id) {
+    } else if (!account.access_id) {
       const nextAccessId = await getNextAccessId(supabase);
 
       const { data: updatedAccount, error: updateAccountError } = await (
@@ -237,7 +237,7 @@ export async function POST(request: Request) {
         .from("access_accounts")
         .update({
           access_id: nextAccessId,
-          status: "active",
+          status: body.adminCreated ? "active" : account.status,
           app_role: account.app_role || "user",
           updated_at: new Date().toISOString(),
         })
@@ -305,6 +305,22 @@ export async function POST(request: Request) {
         ? `${body.firstName.trim()} ${body.lastName.trim()} was added directly by an administrator.`
         : `${body.firstName.trim()} ${body.lastName.trim()} submitted an access account application.`,
     });
+
+    if (!body.adminCreated && !body.bypassNotifications) {
+      const { error: confirmationEmailError } =
+        await supabase.functions.invoke("send-submission-confirmation", {
+          body: {
+            access_account_id: account.id,
+          },
+        });
+
+      if (confirmationEmailError) {
+        console.error(
+          "Submission confirmation email failed:",
+          confirmationEmailError
+        );
+      }
+    }
 
     return NextResponse.json({
       success: true,
