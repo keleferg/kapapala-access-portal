@@ -5,6 +5,12 @@ import {
 } from "@/lib/supabaseAdmin";
 
 type AccessAccountPayload = {
+  applicationId?: string;
+  idType?: string;
+  idDocumentPath?: string;
+  idDocumentOriginalFilename?: string;
+  idDocumentMimeType?: string;
+  idDocumentFileSize?: number;
   firstName: string;
   lastName: string;
   email?: string;
@@ -88,6 +94,20 @@ export async function POST(request: Request) {
     if (!body.email?.trim()) {
       return NextResponse.json(
         { success: false, error: "Email is required." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      !body.adminCreated &&
+      !body.bypassPhotoId &&
+      !body.idDocumentPath?.trim()
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "A government ID document is required.",
+        },
         { status: 400 }
       );
     }
@@ -209,6 +229,10 @@ export async function POST(request: Request) {
           status: body.adminCreated ? "active" : body.status || "pending",
           app_role: "user",
           account_type: "Public Access",
+          applicant_first_name: body.firstName.trim(),
+          applicant_last_name: body.lastName.trim(),
+          applicant_email: normalizedEmail,
+          applicant_phone: body.phone?.trim() || null,
           organization: body.organization?.trim() || null,
           default_gate: body.defaultGate || null,
           emergency_contact_name: body.emergencyContactName?.trim() || null,
@@ -258,6 +282,154 @@ export async function POST(request: Request) {
       }
 
       account = updatedAccount;
+    }
+
+    if (account?.id) {
+      const { data: hydratedAccount, error: hydrateAccountError } = await (
+        supabase as any
+      )
+        .from("access_accounts")
+        .update({
+          applicant_first_name: body.firstName.trim(),
+          applicant_last_name: body.lastName.trim(),
+          applicant_email: normalizedEmail,
+          applicant_phone: body.phone?.trim() || null,
+          organization: body.organization?.trim() || null,
+          default_gate: body.defaultGate || null,
+          emergency_contact_name:
+            body.emergencyContactName?.trim() || null,
+          emergency_contact_phone:
+            body.emergencyContactPhone?.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", account.id)
+        .select("id, access_id, status, app_role, created_at")
+        .single();
+
+      if (hydrateAccountError || !hydratedAccount) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              hydrateAccountError?.message ||
+              "Unable to save applicant information.",
+          },
+          { status: 500 }
+        );
+      }
+
+      account = hydratedAccount;
+    }
+
+    if (body.idDocumentPath?.trim() && account?.id) {
+      const storagePath = body.idDocumentPath.trim();
+      const applicationId = body.applicationId?.trim() || "";
+      const expectedPrefix = applicationId
+        ? `pending/${applicationId}-`
+        : "pending/";
+
+      if (!storagePath.startsWith(expectedPrefix)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Invalid government ID storage path.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const { data: existingDocument, error: existingDocumentError } =
+        await (supabase as any)
+          .from("access_account_documents")
+          .select("id, access_account_id")
+          .eq("storage_bucket", "access-account-ids")
+          .eq("storage_path", storagePath)
+          .maybeSingle();
+
+      if (existingDocumentError) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: existingDocumentError.message,
+          },
+          { status: 500 }
+        );
+      }
+
+      if (
+        existingDocument &&
+        existingDocument.access_account_id !== account.id
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "This government ID document is already linked to another account.",
+          },
+          { status: 409 }
+        );
+      }
+
+      if (!existingDocument) {
+        const originalFilename =
+          body.idDocumentOriginalFilename?.trim() ||
+          storagePath.split("/").pop() ||
+          "government-id";
+
+        const fileSize =
+          typeof body.idDocumentFileSize === "number" &&
+          Number.isFinite(body.idDocumentFileSize)
+            ? Math.max(0, Math.trunc(body.idDocumentFileSize))
+            : null;
+
+        const { error: documentInsertError } = await (supabase as any)
+          .from("access_account_documents")
+          .insert({
+            access_account_id: account.id,
+            document_type: "government_id",
+            storage_bucket: "access-account-ids",
+            storage_path: storagePath,
+            original_filename: originalFilename,
+            mime_type:
+              body.idDocumentMimeType?.trim() || null,
+            file_size: fileSize,
+            notes: body.idType?.trim()
+              ? `Government ID type: ${body.idType.trim()}`
+              : null,
+          });
+
+        if (documentInsertError) {
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                documentInsertError.message ||
+                "Unable to link the government ID document.",
+            },
+            { status: 500 }
+          );
+        }
+      }
+
+      const { error: legacyPathError } = await (supabase as any)
+        .from("access_accounts")
+        .update({
+          id_document_path: storagePath,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", account.id);
+
+      if (legacyPathError) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              legacyPathError.message ||
+              "Unable to save the government ID path.",
+          },
+          { status: 500 }
+        );
+      }
     }
 
     if (body.vehicles?.length && account?.id) {
