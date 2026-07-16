@@ -304,9 +304,7 @@ export default function AccessAccountWizard() {
         throw new Error(result.error || "Unable to submit application.");
       }
 
-      setSubmitMessage(
-        "Application submitted successfully. Your request is now pending admin review."
-      );
+      setSubmitMessage("submitted");
       setForm(initialForm);
       setIdFile(null);
       setStep(5);
@@ -317,6 +315,81 @@ export default function AccessAccountWizard() {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (submitMessage) {
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "32px 20px",
+        }}
+      >
+        <div style={{ width: "100%", maxWidth: "720px" }}>
+          <Card title="Account Request Submitted">
+            <div
+              className="mobile-form-stack"
+              style={{
+                textAlign: "center",
+                padding: "28px 12px",
+              }}
+            >
+              <div
+                aria-hidden="true"
+                style={{
+                  fontSize: "52px",
+                  lineHeight: 1,
+                  marginBottom: "8px",
+                }}
+              >
+                ✓
+              </div>
+
+              <h1 style={{ marginBottom: "8px" }}>
+                Mahalo!
+              </h1>
+
+              <p style={{ fontSize: "1.1rem" }}>
+                Your Kapāpala Access account request has been successfully
+                submitted.
+              </p>
+
+              <div
+                className="success-callout"
+                style={{
+                  marginTop: "20px",
+                  textAlign: "left",
+                }}
+              >
+                <p>
+                  Accounts will be reviewed within the next 72 hours. Once
+                  approved, you will receive a confirmation email and will be
+                  able to submit access requests.
+                </p>
+
+                <p style={{ marginTop: "14px" }}>
+                  In the meantime, download the Kapāpala Access App from the
+                  App Store.
+                </p>
+              </div>
+
+              <p
+                style={{
+                  marginTop: "24px",
+                  fontSize: "1.1rem",
+                  fontWeight: 700,
+                }}
+              >
+                Mahalo!
+              </p>
+            </div>
+          </Card>
+        </div>
+      </main>
+    );
   }
 
   return (
