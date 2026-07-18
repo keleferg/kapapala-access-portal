@@ -4938,8 +4938,8 @@ tbody tr:hover,
 }
 
 .app-shell--admin .sidebar.vertical-sidebar .icon {
-  color: rgba(255, 255, 255, 0.82);
-  filter: grayscale(1) brightness(2.8);
+  color: inherit;
+  filter: none;
 }
 
 .app-shell--admin .sidebar.vertical-sidebar .text {
