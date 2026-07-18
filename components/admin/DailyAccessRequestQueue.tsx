@@ -19,6 +19,10 @@ type DailyAccessRequest = {
   status: RequestStatus;
   pending_reason: string | null;
   created_at: string;
+  ainapo_permit_verified: boolean;
+  ainapo_permit_match_method: string | null;
+  ainapo_permit_match_confidence: number | null;
+  ainapo_permit_id: string | null;
 
   access_accounts: {
     access_id: string | null;
@@ -233,6 +237,10 @@ export default function DailyAccessRequestQueue() {
         status,
         pending_reason,
         created_at,
+        ainapo_permit_verified,
+        ainapo_permit_match_method,
+        ainapo_permit_match_confidence,
+        ainapo_permit_id,
         access_accounts (
           access_id,
           profiles!access_accounts_profile_id_fkey (
@@ -583,9 +591,18 @@ export default function DailyAccessRequestQueue() {
                 const partySize = getPartySize(request);
                 const isUpdating = updatingId === request.id;
                 const isPending = request.status === "pending";
+                const isAinapoPermitVerified =
+                  request.ainapo_permit_verified === true;
 
                 return (
-                  <div className="daily-request-row" key={request.id}>
+                  <div
+                    className={`daily-request-row ${
+                      isAinapoPermitVerified
+                        ? "ainapo-permit-verified-row"
+                        : ""
+                    }`}
+                    key={request.id}
+                  >
                     <strong>{getRequesterName(request)}</strong>
 
                     <span>{getAccessId(request)}</span>
@@ -611,6 +628,25 @@ export default function DailyAccessRequestQueue() {
                         label={formatStatus(request.status)}
                         tone={statusTone(request.status)}
                       />
+
+                      {isAinapoPermitVerified && (
+                        <span
+                          className="ainapo-permit-verified-badge"
+                          title={[
+                            "DLNR ʻĀinapō Cabin permit verified",
+                            request.ainapo_permit_match_method
+                              ? `Match: ${request.ainapo_permit_match_method}`
+                              : null,
+                            request.ainapo_permit_match_confidence != null
+                              ? `Confidence: ${request.ainapo_permit_match_confidence}%`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        >
+                          DLNR Verified
+                        </span>
+                      )}
 
                       <Link
                         className="button secondary"

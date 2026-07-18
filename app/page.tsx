@@ -5,7 +5,13 @@ export default function HomePage() {
   return (
     <main className="public-landing">
       <section className="public-login-card">
-        <div className="brand-mark" style={{ marginBottom: 16 }}>🌿</div>
+        <div className="brand-mark" style={{ marginBottom: 16 }}>
+          <img
+            src="/kapapala-access-logo.png"
+            alt="Kapāpala Ranch Public Access"
+            className="brand-logo-image"
+          />
+        </div>
 
         <p className="eyebrow">Kapapala Forest Reserve Access Management System</p>
         <h1>Kapāpala Access Portal</h1>

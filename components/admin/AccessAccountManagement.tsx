@@ -6,6 +6,7 @@ import Card from "../ui/Card";
 import StatusBadge from "../ui/StatusBadge";
 import { useAccessAccounts } from "../../lib/hooks/useAccessAccounts";
 import { getSupabaseClient } from "../../lib/supabaseClient";
+import { DEFAULT_ORGANIZATION, ORGANIZATION_OPTIONS } from "../../lib/organizationOptions";
 
 type AppRole = "user" | "admin" | "super_user";
 
@@ -78,7 +79,7 @@ const emptyNewUserForm: NewUserForm = {
   lastName: "",
   email: "",
   phone: "",
-  organization: "",
+  organization: DEFAULT_ORGANIZATION,
   defaultGate: "",
   emergencyContactName: "",
   emergencyContactPhone: "",
@@ -720,13 +721,19 @@ export default function AccessAccountManagement({
                   }
                 />
 
-                <input
-                  placeholder="Organization"
+                <select
+                  aria-label="Organization / Agency"
                   value={newUser.organization}
                   onChange={(event) =>
                     updateNewUserField("organization", event.target.value)
                   }
-                />
+                >
+                  {ORGANIZATION_OPTIONS.map((organization) => (
+                    <option key={organization} value={organization}>
+                      {organization}
+                    </option>
+                  ))}
+                </select>
 
                 <select
                   value={newUser.defaultGate}

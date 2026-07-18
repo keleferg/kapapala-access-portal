@@ -5,6 +5,7 @@ import Card from "../ui/Card";
 import StatusBadge from "../ui/StatusBadge";
 import { getSupabaseClient } from "../../lib/supabaseClient";
 import AccessAccountWizard from "./AccessAccountWizard";
+import { DEFAULT_ORGANIZATION, organizationOptionsWithCurrent } from "../../lib/organizationOptions";
 
 type AccessAccount = {
   id: string;
@@ -64,7 +65,7 @@ export default function MyAccessAccountPage() {
     lastName: "",
     email: "",
     phone: "",
-    organization: "",
+    organization: DEFAULT_ORGANIZATION,
     defaultGate: "",
     emergencyContactName: "",
     emergencyContactPhone: "",
@@ -144,7 +145,7 @@ export default function MyAccessAccountPage() {
       lastName: loadedAccount.profiles?.last_name || "",
       email: loadedAccount.profiles?.email || "",
       phone: loadedAccount.profiles?.phone || "",
-      organization: loadedAccount.organization || "",
+      organization: loadedAccount.organization || DEFAULT_ORGANIZATION,
       defaultGate: loadedAccount.default_gate || "",
       emergencyContactName: loadedAccount.emergency_contact_name || "",
       emergencyContactPhone: loadedAccount.emergency_contact_phone || "",
@@ -168,7 +169,7 @@ export default function MyAccessAccountPage() {
       lastName: account.profiles?.last_name || "",
       email: account.profiles?.email || "",
       phone: account.profiles?.phone || "",
-      organization: account.organization || "",
+      organization: account.organization || DEFAULT_ORGANIZATION,
       defaultGate: account.default_gate || "",
       emergencyContactName: account.emergency_contact_name || "",
       emergencyContactPhone: account.emergency_contact_phone || "",
@@ -368,7 +369,7 @@ export default function MyAccessAccountPage() {
               </div>
 
               <div>
-                <span>Organization / Purpose</span>
+                <span>Organization / Agency</span>
                 <strong>{account.organization || "—"}</strong>
               </div>
 
@@ -427,13 +428,21 @@ export default function MyAccessAccountPage() {
               </label>
 
               <label>
-                Organization / Purpose
-                <input
+                Organization / Agency
+                <select
                   value={form.organization}
                   onChange={(event) =>
                     updateForm("organization", event.target.value)
                   }
-                />
+                >
+                  {organizationOptionsWithCurrent(form.organization).map(
+                    (organization) => (
+                      <option key={organization} value={organization}>
+                        {organization}
+                      </option>
+                    )
+                  )}
+                </select>
               </label>
 
               <label>

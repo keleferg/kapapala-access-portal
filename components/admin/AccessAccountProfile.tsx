@@ -11,6 +11,7 @@ import { useCurrentUser } from "../../lib/hooks/useCurrentUser";
 import { getSupabaseClient } from "../../lib/supabaseClient";
 import VehicleManager from "./account/VehicleManager";
 import DocumentManager from "./account/DocumentManager";
+import { DEFAULT_ORGANIZATION, organizationOptionsWithCurrent } from "../../lib/organizationOptions";
 
 function tone(status: string): "green" | "yellow" | "red" {
   if (status === "active") return "green";
@@ -127,7 +128,7 @@ export default function AccessAccountProfile({
     accessId: "",
     status: "pending",
     defaultGate: "",
-    organization: "",
+    organization: DEFAULT_ORGANIZATION,
     emergencyContactName: "",
     emergencyContactPhone: "",
   });
@@ -195,7 +196,7 @@ export default function AccessAccountProfile({
       accessId: account.access_id || "",
       status: account.status || "pending",
       defaultGate: account.default_gate || "",
-      organization: account.organization || "",
+      organization: account.organization || DEFAULT_ORGANIZATION,
       emergencyContactName: account.emergency_contact_name || "",
       emergencyContactPhone: account.emergency_contact_phone || "",
     });
@@ -227,7 +228,7 @@ export default function AccessAccountProfile({
       accessId: account.access_id || "",
       status: account.status || "pending",
       defaultGate: account.default_gate || "",
-      organization: account.organization || "",
+      organization: account.organization || DEFAULT_ORGANIZATION,
       emergencyContactName: account.emergency_contact_name || "",
       emergencyContactPhone: account.emergency_contact_phone || "",
     });
@@ -702,7 +703,7 @@ export default function AccessAccountProfile({
                 </div>
 
                 <div>
-                  <span>Organization / Purpose</span>
+                  <span>Organization / Agency</span>
                   <strong>{account.organization || "—"}</strong>
                 </div>
               </div>
@@ -750,13 +751,21 @@ export default function AccessAccountProfile({
                 </label>
 
                 <label>
-                  Organization / Purpose
-                  <input
+                  Organization / Agency
+                  <select
                     value={editForm.organization}
                     onChange={(event) =>
                       updateEditForm("organization", event.target.value)
                     }
-                  />
+                  >
+                    {organizationOptionsWithCurrent(editForm.organization).map(
+                      (organization) => (
+                        <option key={organization} value={organization}>
+                          {organization}
+                        </option>
+                      )
+                    )}
+                  </select>
                 </label>
               </div>
             )}

@@ -17,6 +17,10 @@ type DailyAccessRequest = {
   vehicle_summary: string | null;
   status: RequestStatus;
   created_at: string;
+  ainapo_permit_verified: boolean;
+  ainapo_permit_match_method: string | null;
+  ainapo_permit_match_confidence: number | null;
+  ainapo_permit_id: string | null;
 
   access_accounts: {
     access_id: string | null;
@@ -173,6 +177,10 @@ export default function DailyAccessQueue() {
         vehicle_summary,
         status,
         created_at,
+        ainapo_permit_verified,
+        ainapo_permit_match_method,
+        ainapo_permit_match_confidence,
+        ainapo_permit_id,
         access_accounts (
           access_id,
           applicant_first_name,
@@ -319,9 +327,18 @@ export default function DailyAccessQueue() {
             const accessId = request.access_accounts?.access_id || "Pending";
             const partySize = request.party_size ?? 0;
             const isDeleting = deletingRequestId === request.id;
+            const isAinapoPermitVerified =
+              request.ainapo_permit_verified === true;
 
             return (
-              <div className="compact-request-row" key={request.id}>
+              <div
+                className={`compact-request-row ${
+                  isAinapoPermitVerified
+                    ? "ainapo-permit-verified-row"
+                    : ""
+                }`}
+                key={request.id}
+              >
                 <span className="compact-request-name">{requesterName}</span>
                 <span>{accessId}</span>
                 <span>{request.gates?.name || "—"}</span>
@@ -334,6 +351,25 @@ export default function DailyAccessQueue() {
                     label={formatStatus(request.status)}
                     tone={statusTone(request.status)}
                   />
+
+                  {isAinapoPermitVerified && (
+                    <span
+                      className="ainapo-permit-verified-badge"
+                      title={[
+                        "DLNR ʻĀinapō Cabin permit verified",
+                        request.ainapo_permit_match_method
+                          ? `Match: ${request.ainapo_permit_match_method}`
+                          : null,
+                        request.ainapo_permit_match_confidence != null
+                          ? `Confidence: ${request.ainapo_permit_match_confidence}%`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    >
+                      DLNR Verified
+                    </span>
+                  )}
                 </span>
                 <span className="compact-request-actions">
                   <Link

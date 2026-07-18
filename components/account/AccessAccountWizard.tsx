@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Card from "../ui/Card";
 import StatusBadge from "../ui/StatusBadge";
 import { getSupabaseClient } from "../../lib/supabaseClient";
+import { DEFAULT_ORGANIZATION, ORGANIZATION_OPTIONS } from "../../lib/organizationOptions";
 
 const steps = [
   "About You",
@@ -24,7 +25,7 @@ type FormState = {
   licensePlate: string;
   emergencyContactName: string;
   emergencyContactPhone: string;
-  primaryPurpose: string;
+  organizationAgency: string;
   defaultGate: "Wood Valley" | "Honanui" | "ʻĀinapō";
 
   dailyRequestAccepted: boolean;
@@ -49,7 +50,7 @@ const initialForm: FormState = {
   licensePlate: "",
   emergencyContactName: "",
   emergencyContactPhone: "",
-  primaryPurpose: "",
+  organizationAgency: DEFAULT_ORGANIZATION,
   defaultGate: "Wood Valley",
 
   dailyRequestAccepted: false,
@@ -144,7 +145,7 @@ export default function AccessAccountWizard() {
         return Boolean(
           form.emergencyContactName.trim() &&
             form.emergencyContactPhone.trim() &&
-            form.primaryPurpose.trim()
+            form.organizationAgency.trim()
         );
 
       case 4:
@@ -177,7 +178,7 @@ export default function AccessAccountWizard() {
         return "Please upload a government ID and select the ID type.";
 
       case 3:
-        return "Please complete the emergency contact and primary purpose fields.";
+        return "Please complete the emergency contact and organization / agency fields.";
 
       case 4:
         return "Please read and acknowledge all ten access rules before continuing.";
@@ -269,7 +270,7 @@ export default function AccessAccountWizard() {
           idDocumentOriginalFilename: idFile.name,
           idDocumentMimeType: idFile.type || "application/octet-stream",
           idDocumentFileSize: idFile.size,
-          organization: form.primaryPurpose,
+          organization: form.organizationAgency,
           defaultGate: form.defaultGate,
           emergencyContactName: form.emergencyContactName.trim(),
           emergencyContactPhone: form.emergencyContactPhone.trim(),
@@ -737,27 +738,19 @@ function EmergencyContactStep({
       </div>
 
       <label>
-        Primary Purpose of Access
+        Organization / Agency of Access
         <select
-          value={form.primaryPurpose}
-          onChange={(event) =>
-            updateField("primaryPurpose", event.target.value)
-          }
-          required
-        >
-          <option value="" disabled>
-            Select purpose
-          </option>
-          <option value="Hunting">Hunting</option>
-          <option value="Hiking">Hiking</option>
-          <option value="Forest Reserve Access">
-            Forest Reserve Access
-          </option>
-          <option value="Cultural Access">Cultural Access</option>
-          <option value="Research">Research</option>
-          <option value="Ranch Business">Ranch Business</option>
-          <option value="Other">Other</option>
-        </select>
+                  value={form.organizationAgency}
+                  onChange={(event) =>
+                    updateField("organizationAgency", event.target.value)
+                  }
+                >
+                  {ORGANIZATION_OPTIONS.map((organization) => (
+                    <option key={organization} value={organization}>
+                      {organization}
+                    </option>
+                  ))}
+                </select>
       </label>
 
       <label>
@@ -1115,8 +1108,8 @@ function ReviewStep({
         </div>
 
         <div className="summary-item">
-          <span>Primary Purpose</span>
-          <strong>{form.primaryPurpose || "—"}</strong>
+          <span>Organization / Agency</span>
+          <strong>{form.organizationAgency || "—"}</strong>
         </div>
 
         <div className="summary-item">

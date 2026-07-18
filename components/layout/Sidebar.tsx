@@ -142,8 +142,13 @@ export default function Sidebar() {
 
         <div className="sidebar__header">
           <figure className="sidebar__brand">
-            <div className="codepen-logo" aria-hidden="true">
-              🌿
+            <div className="codepen-logo">
+              <img
+                src="/kapapala-access-logo.png"
+                alt=""
+                className="sidebar-logo-image"
+                aria-hidden="true"
+              />
             </div>
 
             <figcaption>
