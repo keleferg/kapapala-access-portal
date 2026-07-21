@@ -4,6 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Card from "../ui/Card";
 import { getSupabaseClient } from "../../lib/supabaseClient";
+import {
+  DEFAULT_ORGANIZATION,
+  ORGANIZATION_OPTIONS,
+} from "../../lib/organizationOptions";
+import {
+  DEVICE_TYPE_OPTIONS,
+  formatDeviceType,
+  type DeviceType,
+} from "../../lib/deviceTypeOptions";
 
 type GateName = "Wood Valley" | "Honanui" | "ʻĀinapō";
 
@@ -15,12 +24,16 @@ type ExistingAccount = {
   applicant_email: string | null;
   applicant_phone: string | null;
   mailing_address: string | null;
+  organization: string | null;
+  device_type: DeviceType | null;
   default_gate: GateName | null;
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
   id_document_path: string | null;
   setup_version: number | null;
   setup_completed_at: string | null;
+  id_is_valid: boolean;
+  id_status_message: string;
 };
 
 type FormState = {
@@ -29,6 +42,8 @@ type FormState = {
   email: string;
   phone: string;
   mailingAddress: string;
+  organization: string;
+  deviceType: DeviceType | "";
   defaultGate: GateName;
   emergencyContactName: string;
   emergencyContactPhone: string;
@@ -62,6 +77,10 @@ export default function ExistingAccountSetupWizard({
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [idFile, setIdFile] = useState<File | null>(null);
+  const [idType, setIdType] = useState("");
+  const [replacementIdUploaded, setReplacementIdUploaded] =
+    useState(false);
 
   const [form, setForm] = useState<FormState>({
     firstName: account.applicant_first_name ?? "",
@@ -69,6 +88,8 @@ export default function ExistingAccountSetupWizard({
     email: account.applicant_email ?? "",
     phone: account.applicant_phone ?? "",
     mailingAddress: account.mailing_address ?? "",
+    organization: account.organization ?? DEFAULT_ORGANIZATION,
+    deviceType: account.device_type ?? "",
     defaultGate: account.default_gate ?? "Wood Valley",
     emergencyContactName: account.emergency_contact_name ?? "",
     emergencyContactPhone: account.emergency_contact_phone ?? "",
@@ -113,7 +134,14 @@ export default function ExistingAccountSetupWizard({
         form.lastName.trim() &&
         form.email.trim() &&
         form.phone.trim() &&
-        form.defaultGate
+        form.organization.trim() &&
+        form.deviceType &&
+        form.defaultGate &&
+        (
+          account.id_is_valid ||
+          replacementIdUploaded ||
+          Boolean(idFile && idType)
+        )
     );
 
     const emergencyContactComplete = Boolean(
@@ -187,6 +215,51 @@ export default function ExistingAccountSetupWizard({
     try {
       const supabase = getSupabaseClient();
 
+      if (!account.id_is_valid && !replacementIdUploaded) {
+        if (!idFile || !idType) {
+          throw new Error(
+            "Please select an ID type and upload a current government ID."
+          );
+        }
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.access_token) {
+          throw new Error(
+            "Your session has expired. Please sign in again."
+          );
+        }
+
+        const uploadForm = new FormData();
+        uploadForm.append("file", idFile);
+        uploadForm.append("documentType", idType);
+
+        const uploadResponse = await fetch(
+          "/api/my-access-account/id-document",
+          {
+            method: "POST",
+            headers: {
+              Authorization:
+                `Bearer ${session.access_token}`,
+            },
+            body: uploadForm,
+          }
+        );
+
+        const uploadResult = await uploadResponse.json();
+
+        if (!uploadResponse.ok || !uploadResult.success) {
+          throw new Error(
+            uploadResult.error ||
+            "Unable to upload identification."
+          );
+        }
+
+        setReplacementIdUploaded(true);
+      }
+
       const rpcArguments = {
       p_access_account_id: account.id,
       p_first_name: form.firstName.trim(),
@@ -198,6 +271,8 @@ export default function ExistingAccountSetupWizard({
       p_emergency_contact_name: form.emergencyContactName.trim(),
       p_emergency_contact_phone: form.emergencyContactPhone.trim(),
       p_id_document_path: null,
+      p_organization: form.organization.trim(),
+      p_device_type: form.deviceType,
     };
 
     const { error } = await supabase.rpc(
@@ -335,6 +410,113 @@ export default function ExistingAccountSetupWizard({
                 placeholder="Mailing address"
               />
             </label>
+
+            <label>
+              Organization / Agency
+              <select
+                value={form.organization}
+                onChange={(event) =>
+                  updateField("organization", event.target.value)
+                }
+                required
+              >
+                {ORGANIZATION_OPTIONS.map((organization) => (
+                  <option key={organization} value={organization}>
+                    {organization}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              What device do you plan to use to retrieve gate codes?
+              <select
+                value={form.deviceType}
+                onChange={(event) =>
+                  updateField(
+                    "deviceType",
+                    event.target.value as DeviceType | ""
+                  )
+                }
+                required
+              >
+                <option value="" disabled>
+                  Select device
+                </option>
+
+                {DEVICE_TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+
+              <span className="muted-text">
+                This determines how gate combinations will be delivered.
+              </span>
+            </label>
+
+            {!account.id_is_valid && (
+              <div className="error-callout">
+                <strong>Current government ID required</strong>
+                <p>{account.id_status_message}</p>
+
+                <label>
+                  ID Type
+                  <select
+                    value={idType}
+                    onChange={(event) =>
+                      setIdType(event.target.value)
+                    }
+                    required
+                  >
+                    <option value="" disabled>
+                      Select ID type
+                    </option>
+                    <option value="Driver License">
+                      Driver License
+                    </option>
+                    <option value="State ID">
+                      State ID
+                    </option>
+                    <option value="Passport">
+                      Passport
+                    </option>
+                    <option value="Other Government ID">
+                      Other Government ID
+                    </option>
+                  </select>
+                </label>
+
+                <label>
+                  Government ID Upload
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,application/pdf"
+                    onChange={(event) => {
+                      setIdFile(
+                        event.target.files?.[0] ?? null
+                      );
+                      setReplacementIdUploaded(false);
+                    }}
+                    required
+                  />
+                </label>
+
+                <p className="muted-text">
+                  {idFile
+                    ? `Selected file: ${idFile.name}`
+                    : "Upload a clear JPG, PNG, or PDF copy of your current government ID."}
+                </p>
+              </div>
+            )}
+
+            {account.id_is_valid && (
+              <div className="success-callout">
+                <strong>Valid government ID on file</strong>
+                <p>{account.id_status_message}</p>
+              </div>
+            )}
 
             <label>
               Preferred Gate
@@ -581,6 +763,14 @@ export default function ExistingAccountSetupWizard({
                 value={form.mailingAddress || "Not provided"}
               />
               <SummaryItem
+                label="Organization / Agency"
+                value={form.organization}
+              />
+              <SummaryItem
+                label="Gate Code Device"
+                value={formatDeviceType(form.deviceType)}
+              />
+              <SummaryItem
                 label="Preferred Gate"
                 value={form.defaultGate}
               />
@@ -599,9 +789,13 @@ export default function ExistingAccountSetupWizard({
               <SummaryItem
                 label="ID Document"
                 value={
-                  account.id_document_path
-                    ? "Already on file"
-                    : "Not provided — optional"
+                  account.id_is_valid
+                    ? "Valid ID on file"
+                    : replacementIdUploaded
+                      ? "Replacement uploaded"
+                      : idFile
+                        ? `Replacement selected: ${idFile.name}`
+                        : "Replacement required"
                 }
               />
             </div>

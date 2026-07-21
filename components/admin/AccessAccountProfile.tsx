@@ -12,6 +12,7 @@ import { getSupabaseClient } from "../../lib/supabaseClient";
 import VehicleManager from "./account/VehicleManager";
 import DocumentManager from "./account/DocumentManager";
 import { DEFAULT_ORGANIZATION, organizationOptionsWithCurrent } from "../../lib/organizationOptions";
+import { DEVICE_TYPE_OPTIONS, formatDeviceType, type DeviceType } from "../../lib/deviceTypeOptions";
 
 function tone(status: string): "green" | "yellow" | "red" {
   if (status === "active") return "green";
@@ -44,6 +45,7 @@ type EditProfileForm = {
   lastName: string;
   email: string;
   phone: string;
+  deviceType: DeviceType | "";
   accessId: string;
   status: string;
   defaultGate: string;
@@ -125,6 +127,7 @@ export default function AccessAccountProfile({
     lastName: "",
     email: "",
     phone: "",
+    deviceType: "",
     accessId: "",
     status: "pending",
     defaultGate: "",
@@ -193,6 +196,7 @@ export default function AccessAccountProfile({
         account.applicant?.last_name || account.applicant_last_name || "",
       email: account.applicant?.email || account.applicant_email || "",
       phone: account.applicant?.phone || account.applicant_phone || "",
+      deviceType: account.device_type || "",
       accessId: account.access_id || "",
       status: account.status || "pending",
       defaultGate: account.default_gate || "",
@@ -225,6 +229,7 @@ export default function AccessAccountProfile({
         account.applicant?.last_name || account.applicant_last_name || "",
       email: account.applicant?.email || account.applicant_email || "",
       phone: account.applicant?.phone || account.applicant_phone || "",
+      deviceType: account.device_type || "",
       accessId: account.access_id || "",
       status: account.status || "pending",
       defaultGate: account.default_gate || "",
@@ -703,6 +708,14 @@ export default function AccessAccountProfile({
                 </div>
 
                 <div>
+                  <span>Gate Code Device</span>
+                  <strong>{formatDeviceType(account.device_type)}</strong>
+                  {account.device_type === "basic_phone" && (
+                    <small>Text Delivery</small>
+                  )}
+                </div>
+
+                <div>
                   <span>Organization / Agency</span>
                   <strong>{account.organization || "—"}</strong>
                 </div>
@@ -748,6 +761,23 @@ export default function AccessAccountProfile({
                       updateEditForm("phone", event.target.value)
                     }
                   />
+                </label>
+
+                <label>
+                  Gate Code Device
+                  <select
+                    value={editForm.deviceType}
+                    onChange={(event) =>
+                      updateEditForm("deviceType", event.target.value)
+                    }
+                  >
+                    <option value="">Not provided</option>
+                    {DEVICE_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </label>
 
                 <label>

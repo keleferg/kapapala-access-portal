@@ -6,6 +6,7 @@ import StatusBadge from "../ui/StatusBadge";
 import { getSupabaseClient } from "../../lib/supabaseClient";
 import AccessAccountWizard from "./AccessAccountWizard";
 import { DEFAULT_ORGANIZATION, organizationOptionsWithCurrent } from "../../lib/organizationOptions";
+import { DEVICE_TYPE_OPTIONS, formatDeviceType, type DeviceType } from "../../lib/deviceTypeOptions";
 
 type AccessAccount = {
   id: string;
@@ -13,6 +14,7 @@ type AccessAccount = {
   status: string | null;
   default_gate: string | null;
   organization: string | null;
+  device_type: DeviceType | null;
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
 
@@ -30,6 +32,7 @@ type AccountForm = {
   lastName: string;
   email: string;
   phone: string;
+  deviceType: DeviceType | "";
   organization: string;
   defaultGate: string;
   emergencyContactName: string;
@@ -65,6 +68,7 @@ export default function MyAccessAccountPage() {
     lastName: "",
     email: "",
     phone: "",
+    deviceType: "",
     organization: DEFAULT_ORGANIZATION,
     defaultGate: "",
     emergencyContactName: "",
@@ -107,6 +111,7 @@ export default function MyAccessAccountPage() {
         status,
         default_gate,
         organization,
+        device_type,
         emergency_contact_name,
         emergency_contact_phone,
         profiles!access_accounts_profile_id_fkey (
@@ -145,6 +150,7 @@ export default function MyAccessAccountPage() {
       lastName: loadedAccount.profiles?.last_name || "",
       email: loadedAccount.profiles?.email || "",
       phone: loadedAccount.profiles?.phone || "",
+      deviceType: loadedAccount.device_type || "",
       organization: loadedAccount.organization || DEFAULT_ORGANIZATION,
       defaultGate: loadedAccount.default_gate || "",
       emergencyContactName: loadedAccount.emergency_contact_name || "",
@@ -169,6 +175,7 @@ export default function MyAccessAccountPage() {
       lastName: account.profiles?.last_name || "",
       email: account.profiles?.email || "",
       phone: account.profiles?.phone || "",
+      deviceType: account.device_type || "",
       organization: account.organization || DEFAULT_ORGANIZATION,
       defaultGate: account.default_gate || "",
       emergencyContactName: account.emergency_contact_name || "",
@@ -369,6 +376,11 @@ export default function MyAccessAccountPage() {
               </div>
 
               <div>
+                <span>Gate Code Device</span>
+                <strong>{formatDeviceType(account.device_type)}</strong>
+              </div>
+
+              <div>
                 <span>Organization / Agency</span>
                 <strong>{account.organization || "—"}</strong>
               </div>
@@ -425,6 +437,26 @@ export default function MyAccessAccountPage() {
                   value={form.phone}
                   onChange={(event) => updateForm("phone", event.target.value)}
                 />
+              </label>
+
+              <label>
+                Gate Code Device
+                <select
+                  value={form.deviceType}
+                  onChange={(event) =>
+                    updateForm(
+                      "deviceType",
+                      event.target.value as DeviceType | ""
+                    )
+                  }
+                >
+                  <option value="">Select device</option>
+                  {DEVICE_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <label>

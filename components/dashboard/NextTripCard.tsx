@@ -51,9 +51,9 @@ function formatDate(dateValue: string) {
 
   if (Number.isNaN(date.getTime())) return dateValue;
 
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
+  return date.toLocaleDateString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
   });
 }
 

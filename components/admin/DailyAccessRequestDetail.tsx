@@ -14,10 +14,12 @@ type DailyAccessRequest = {
   purpose: string | null;
   party_size: number | null;
   vehicle_summary: string | null;
+  user_comments: string | null;
   status: RequestStatus;
   created_at: string;
 
   access_accounts: {
+    id: string;
     access_id: string | null;
     profiles: {
       first_name: string | null;
@@ -67,10 +69,10 @@ function formatDate(dateValue: string | null) {
     return "Unknown";
   }
 
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
     year: "numeric",
-    month: "long",
-    day: "numeric",
   });
 }
 
@@ -83,10 +85,10 @@ function formatDateTime(dateValue: string | null) {
     return "Unknown";
   }
 
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
     year: "numeric",
-    month: "long",
-    day: "numeric",
     hour: "numeric",
     minute: "2-digit",
   });
@@ -151,9 +153,11 @@ export default function DailyAccessRequestDetail({
         purpose,
         party_size,
         vehicle_summary,
+        user_comments,
         status,
         created_at,
         access_accounts (
+          id,
           access_id,
           profiles!access_accounts_profile_id_fkey (
             first_name,
@@ -309,9 +313,22 @@ export default function DailyAccessRequestDetail({
               value={request.vehicle_summary || "No vehicle listed"}
             />
           </DetailSection>
+
+          <DetailSection title="Applicant Comments">
+            <DetailItem
+              label="Comments"
+              value={request.user_comments?.trim() || "No comments provided"}
+            />
+          </DetailSection>
         </div>
 
         <div className="request-detail-actions">
+          <Link
+            className="button secondary"
+            href={`/admin/access-accounts/${accessAccount?.id}`}
+          >
+            View Full Profile
+          </Link>
           {isPending ? (
             <>
               <button

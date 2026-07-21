@@ -21,6 +21,7 @@ export async function POST(request: Request) {
       lastName,
       email,
       phone,
+      deviceType,
       organization,
       defaultGate,
       emergencyContactName,
@@ -100,6 +101,7 @@ export async function POST(request: Request) {
       .from("access_accounts")
       .update({
         organization: organization || null,
+        device_type: deviceType || null,
         default_gate: defaultGate || null,
         emergency_contact_name: emergencyContactName || null,
         emergency_contact_phone: emergencyContactPhone || null,

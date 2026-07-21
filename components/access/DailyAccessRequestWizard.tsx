@@ -89,10 +89,10 @@ function toDateInputValue(date: Date) {
 }
 
 function formatDisplayDate(value: string) {
-  return new Date(`${value}T12:00:00`).toLocaleDateString(undefined, {
+  return new Date(`${value}T12:00:00`).toLocaleDateString("en-US", {
     weekday: "long",
-    month: "long",
-    day: "numeric",
+    month: "2-digit",
+    day: "2-digit",
     year: "numeric",
   });
 }

@@ -16,6 +16,7 @@ type AccessAccountPayload = {
   lastName: string;
   email?: string;
   phone?: string;
+  deviceType?: "iphone" | "android" | "basic_phone";
   organization?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
@@ -238,6 +239,7 @@ export async function POST(request: Request) {
           applicant_last_name: body.lastName.trim(),
           applicant_email: normalizedEmail,
           applicant_phone: body.phone?.trim() || null,
+          device_type: body.deviceType || null,
           organization: body.organization?.trim() || null,
           default_gate: body.defaultGate || null,
           emergency_contact_name: body.emergencyContactName?.trim() || null,
@@ -299,6 +301,7 @@ export async function POST(request: Request) {
           applicant_last_name: body.lastName.trim(),
           applicant_email: normalizedEmail,
           applicant_phone: body.phone?.trim() || null,
+          device_type: body.deviceType || null,
           organization: body.organization?.trim() || null,
           default_gate: body.defaultGate || null,
           emergency_contact_name:
@@ -536,6 +539,7 @@ export async function GET() {
         app_role,
         account_type,
         organization,
+        device_type,
         default_gate,
         emergency_contact_name,
         emergency_contact_phone,

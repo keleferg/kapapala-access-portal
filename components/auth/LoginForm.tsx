@@ -103,14 +103,14 @@ export default function LoginForm() {
       if (error) {
         setErrorMessage(error.message);
       } else {
-        setMessage("Password setup link sent. Check your email.");
+        setMessage("Password reset link sent. Check your email.");
       }
     } catch (error) {
       console.error("Password setup failed:", error);
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Unable to send password setup link."
+          : "Unable to send password reset link."
       );
     } finally {
       setLoading(false);
@@ -160,7 +160,7 @@ export default function LoginForm() {
           onClick={() => void sendPasswordSetup()}
           disabled={loading || !email.trim()}
         >
-          Send Password Setup Link
+          Reset Password
         </button>
       </div>
     </Card>

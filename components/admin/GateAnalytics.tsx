@@ -76,18 +76,18 @@ const FALLBACK_COLORS = [
 function formatShortDate(dateValue: string) {
   const date = new Date(`${dateValue}T12:00:00`);
 
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
+  return date.toLocaleDateString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
   });
 }
 
 function formatLongDate(dateValue: string) {
   const date = new Date(`${dateValue}T12:00:00`);
 
-  return date.toLocaleDateString(undefined, {
-    month: "long",
-    day: "numeric",
+  return date.toLocaleDateString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
     year: "numeric",
   });
 }

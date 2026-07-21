@@ -48,10 +48,10 @@ function formatRequestDate(dateValue: string | null) {
     return "Unknown Date";
   }
 
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString("en-US", {
     year: "numeric",
-    month: "long",
-    day: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   });
 }
 
@@ -64,10 +64,10 @@ function formatDateTime(dateValue: string | null) {
     return "Unknown Date";
   }
 
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString("en-US", {
     year: "numeric",
-    month: "short",
-    day: "numeric",
+    month: "2-digit",
+    day: "2-digit",
     hour: "numeric",
     minute: "2-digit",
   });

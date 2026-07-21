@@ -41,8 +41,8 @@ function formatDateRange(
   }
 
   const formatter = new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
+    month: "2-digit",
+    day: "2-digit",
     timeZone: "Pacific/Honolulu",
   });
 

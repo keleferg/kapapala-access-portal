@@ -5,6 +5,7 @@ import Card from "../ui/Card";
 import StatusBadge from "../ui/StatusBadge";
 import { getSupabaseClient } from "../../lib/supabaseClient";
 import { DEFAULT_ORGANIZATION, ORGANIZATION_OPTIONS } from "../../lib/organizationOptions";
+import { DEVICE_TYPE_OPTIONS, formatDeviceType, type DeviceType } from "../../lib/deviceTypeOptions";
 
 const steps = [
   "About You",
@@ -20,6 +21,7 @@ type FormState = {
   lastName: string;
   email: string;
   phone: string;
+  deviceType: DeviceType | "";
   idType: string;
   vehicleDescription: string;
   licensePlate: string;
@@ -45,6 +47,7 @@ const initialForm: FormState = {
   lastName: "",
   email: "",
   phone: "",
+  deviceType: "",
   idType: "",
   vehicleDescription: "",
   licensePlate: "",
@@ -132,7 +135,8 @@ export default function AccessAccountWizard() {
           form.firstName.trim() &&
             form.lastName.trim() &&
             form.email.trim() &&
-            form.phone.trim()
+            form.phone.trim() &&
+            form.deviceType
         );
 
       case 1:
@@ -265,6 +269,7 @@ export default function AccessAccountWizard() {
           lastName: form.lastName.trim(),
           email: form.email.trim(),
           phone: form.phone.trim(),
+          deviceType: form.deviceType,
           idType: form.idType,
           idDocumentPath,
           idDocumentOriginalFilename: idFile.name,
@@ -558,6 +563,35 @@ function AboutYouStep({
             onChange={(event) => updateField("phone", event.target.value)}
             required
           />
+        </label>
+
+        <label>
+          What device do you plan to use to retrieve gate codes?
+          <select
+            value={form.deviceType}
+            onChange={(event) =>
+              updateField(
+                "deviceType",
+                event.target.value as DeviceType | ""
+              )
+            }
+            required
+          >
+            <option value="" disabled>
+              Select device
+            </option>
+
+            {DEVICE_TYPE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
+          <span className="muted-text">
+            This helps us provide the correct gate-code delivery method. You can
+            update this later.
+          </span>
         </label>
       </div>
     </div>
@@ -1080,6 +1114,11 @@ function ReviewStep({
         <div className="summary-item">
           <span>Phone</span>
           <strong>{form.phone || "—"}</strong>
+        </div>
+
+        <div className="summary-item">
+          <span>Gate Code Device</span>
+          <strong>{formatDeviceType(form.deviceType)}</strong>
         </div>
 
         <div className="summary-item">

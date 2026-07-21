@@ -12,6 +12,7 @@ export type AccessAccount = {
   app_role: AppRole;
   account_type: string;
   organization: string | null;
+  device_type: "iphone" | "android" | "basic_phone" | null;
   default_gate: string | null;
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;

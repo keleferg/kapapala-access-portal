@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getSupabaseClient } from "../../lib/supabaseClient";
 
-const CURRENT_SETUP_VERSION = 1;
+const CURRENT_SETUP_VERSION = 2;
 
 const EXCLUDED_PATHS = [
   "/login",

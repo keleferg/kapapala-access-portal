@@ -36,7 +36,7 @@ export default function SetPasswordForm() {
 
       if (!session) {
         setError(
-          "This password setup link is invalid or expired. Please request a new link."
+          "This password reset link is invalid or expired. Please request a new link."
         );
         setReady(false);
         return;

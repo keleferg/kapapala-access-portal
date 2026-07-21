@@ -7,6 +7,7 @@ import StatusBadge from "../ui/StatusBadge";
 import { useAccessAccounts } from "../../lib/hooks/useAccessAccounts";
 import { getSupabaseClient } from "../../lib/supabaseClient";
 import { DEFAULT_ORGANIZATION, ORGANIZATION_OPTIONS } from "../../lib/organizationOptions";
+import { formatDeviceType, type DeviceType } from "../../lib/deviceTypeOptions";
 
 type AppRole = "user" | "admin" | "super_user";
 
@@ -33,6 +34,7 @@ type AccessAccount = {
   account_type?: string | null;
   default_gate?: string | null;
   organization?: string | null;
+  device_type?: DeviceType | null;
   expires_at?: string | null;
   emergency_contact_name?: string | null;
   emergency_contact_phone?: string | null;
@@ -959,6 +961,11 @@ export default function AccessAccountManagement({
                   <div>
                     <span>Organization</span>
                     <strong>{selected.organization || "—"}</strong>
+                  </div>
+
+                  <div>
+                    <span>Gate Code Device</span>
+                    <strong>{formatDeviceType(selected.device_type)}</strong>
                   </div>
 
                   <div>
