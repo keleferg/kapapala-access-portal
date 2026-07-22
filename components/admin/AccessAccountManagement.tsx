@@ -670,6 +670,13 @@ export default function AccessAccountManagement({
               Add User
             </button>
 
+            <Link
+              className="button secondary"
+              href="/admin/access-accounts/renewals"
+            >
+              Renewal Requests
+            </Link>
+
             <button
               className="button secondary"
               type="button"

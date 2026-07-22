@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import ExistingAccountSetupWizard from "../../components/access-account/ExistingAccountSetupWizard";
 import { getSupabaseClient } from "../../lib/supabaseClient";
 import type { DeviceType } from "../../lib/deviceTypeOptions";
@@ -11,6 +11,12 @@ type GateName = "Wood Valley" | "Honanui" | "ʻĀinapō";
 type ExistingAccount = {
   id: string;
   access_id: string | null;
+  status: string | null;
+  expires_at: string | null;
+  renewal_is_eligible?: boolean;
+  renewal_eligibility_reason?: string | null;
+  open_renewal_request_id?: string | null;
+  open_renewal_request_status?: string | null;
   applicant_first_name: string | null;
   applicant_last_name: string | null;
   applicant_email: string | null;
@@ -31,6 +37,8 @@ type ExistingAccount = {
 type AccountRow = {
   id: string;
   access_id: string | null;
+  status: string | null;
+  expires_at: string | null;
   applicant_first_name: string | null;
   applicant_last_name: string | null;
   applicant_email: string | null;
@@ -68,6 +76,8 @@ function normalizeAccount(data: AccountRow): ExistingAccount {
   return {
     id: data.id,
     access_id: data.access_id,
+    status: data.status,
+    expires_at: data.expires_at,
     applicant_first_name:
       data.applicant_first_name || data.profiles?.first_name || null,
     applicant_last_name:
@@ -91,8 +101,12 @@ function normalizeAccount(data: AccountRow): ExistingAccount {
   };
 }
 
-export default function CompleteAccountSetupPage() {
+function CompleteAccountSetupContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const isRenewalMode =
+    searchParams.get("mode") === "renewal";
 
   const [account, setAccount] = useState<ExistingAccount | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -125,6 +139,8 @@ export default function CompleteAccountSetupPage() {
             `
               id,
               access_id,
+              status,
+              expires_at,
               applicant_first_name,
               applicant_last_name,
               applicant_email,
@@ -188,7 +204,60 @@ export default function CompleteAccountSetupPage() {
           idStatus?.status_message ||
           "The identification document on file could not be validated.";
 
-        if (normalizedAccount.setup_version >= 2) {
+        if (isRenewalMode) {
+          const {
+            data: eligibilityData,
+            error: eligibilityError,
+          } = await (supabase as any).rpc(
+            "get_access_account_renewal_eligibility",
+            {
+              p_access_account_id: normalizedAccount.id,
+            }
+          );
+
+          if (eligibilityError) {
+            throw new Error(eligibilityError.message);
+          }
+
+          const eligibility = Array.isArray(eligibilityData)
+            ? eligibilityData[0]
+            : eligibilityData;
+
+          normalizedAccount.renewal_is_eligible =
+            eligibility?.is_eligible === true;
+
+          normalizedAccount.renewal_eligibility_reason =
+            eligibility?.eligibility_reason || null;
+
+          normalizedAccount.open_renewal_request_id =
+            eligibility?.open_renewal_request_id || null;
+
+          normalizedAccount.open_renewal_request_status =
+            eligibility?.open_renewal_request_status || null;
+
+          if (!normalizedAccount.renewal_is_eligible) {
+            if (isMounted) {
+              setLoadError(
+                normalizedAccount.renewal_eligibility_reason ||
+                  "This account is not currently eligible for renewal."
+              );
+            }
+            return;
+          }
+
+          if (
+            normalizedAccount.open_renewal_request_id &&
+            normalizedAccount.open_renewal_request_status !==
+              "corrections_required"
+          ) {
+            if (isMounted) {
+              setLoadError(
+                "A renewal request is already pending administrative review."
+              );
+            }
+            return;
+          }
+        } else if (normalizedAccount.setup_version >= 2) {
           router.replace("/dashboard");
           return;
         }
@@ -216,7 +285,7 @@ export default function CompleteAccountSetupPage() {
     return () => {
       isMounted = false;
     };
-  }, [router]);
+  }, [router, isRenewalMode]);
 
   if (isLoading) {
     return (
@@ -246,7 +315,27 @@ export default function CompleteAccountSetupPage() {
 
   return (
     <main className="page-shell">
-      <ExistingAccountSetupWizard account={account} />
+      <ExistingAccountSetupWizard
+        account={account}
+        mode={isRenewalMode ? "renewal" : "setup"}
+      />
     </main>
+  );
+}
+
+export default function CompleteAccountSetupPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="page-shell">
+          <div className="info-callout">
+            <strong>Loading account setup</strong>
+            <p>Please wait while we retrieve your access account.</p>
+          </div>
+        </main>
+      }
+    >
+      <CompleteAccountSetupContent />
+    </Suspense>
   );
 }

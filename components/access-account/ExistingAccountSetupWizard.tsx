@@ -19,6 +19,12 @@ type GateName = "Wood Valley" | "Honanui" | "ʻĀinapō";
 type ExistingAccount = {
   id: string;
   access_id: string | null;
+  status: string | null;
+  expires_at: string | null;
+  renewal_is_eligible?: boolean;
+  renewal_eligibility_reason?: string | null;
+  open_renewal_request_id?: string | null;
+  open_renewal_request_status?: string | null;
   applicant_first_name: string | null;
   applicant_last_name: string | null;
   applicant_email: string | null;
@@ -69,9 +75,12 @@ const steps = [
 
 export default function ExistingAccountSetupWizard({
   account,
+  mode = "setup",
 }: {
   account: ExistingAccount;
+  mode?: "setup" | "renewal";
 }) {
+  const isRenewalMode = mode === "renewal";
   const router = useRouter();
 
   const [step, setStep] = useState(0);
@@ -205,7 +214,9 @@ export default function ExistingAccountSetupWizard({
 
     if (!isStepComplete(3)) {
       setErrorMessage(
-        "Please complete all required setup steps before submitting."
+        isRenewalMode
+          ? "Please complete all required renewal steps before submitting."
+          : "Please complete all required setup steps before submitting."
       );
       return;
     }
@@ -260,37 +271,126 @@ export default function ExistingAccountSetupWizard({
         setReplacementIdUploaded(true);
       }
 
-      const rpcArguments = {
-      p_access_account_id: account.id,
-      p_first_name: form.firstName.trim(),
-      p_last_name: form.lastName.trim(),
-      p_email: form.email.trim(),
-      p_phone: form.phone.trim(),
-      p_mailing_address: form.mailingAddress.trim(),
-      p_default_gate: form.defaultGate,
-      p_emergency_contact_name: form.emergencyContactName.trim(),
-      p_emergency_contact_phone: form.emergencyContactPhone.trim(),
-      p_id_document_path: null,
-      p_organization: form.organization.trim(),
-      p_device_type: form.deviceType,
-    };
+      if (isRenewalMode) {
+        const rulesAcknowledged = [
+          {
+            number: 1,
+            key: "daily_access_requests",
+            accepted: form.dailyRequestAccepted,
+          },
+          {
+            number: 2,
+            key: "sign_in_and_sign_out",
+            accepted: form.signInOutAccepted,
+          },
+          {
+            number: 3,
+            key: "same_gate_entry_and_exit",
+            accepted: form.sameGateAccepted,
+          },
+          {
+            number: 4,
+            key: "marked_roads_only",
+            accepted: form.markedRoadsAccepted,
+          },
+          {
+            number: 5,
+            key: "dogs_secured",
+            accepted: form.dogsSecuredAccepted,
+          },
+          {
+            number: 6,
+            key: "interior_gates",
+            accepted: form.interiorGatesAccepted,
+          },
+          {
+            number: 7,
+            key: "parking",
+            accepted: form.parkingAccepted,
+          },
+          {
+            number: 8,
+            key: "no_hunting",
+            accepted: form.noHuntingAccepted,
+          },
+          {
+            number: 9,
+            key: "closing_times",
+            accepted: form.closingTimeAccepted,
+          },
+          {
+            number: 10,
+            key: "misuse",
+            accepted: form.misuseAccepted,
+          },
+        ];
 
-    const { error } = await supabase.rpc(
-      "complete_existing_account_setup",
-      rpcArguments as never
-    );
+        const { error } = await supabase.rpc(
+          "submit_access_account_renewal",
+          {
+            p_access_account_id: account.id,
+            p_first_name: form.firstName.trim(),
+            p_last_name: form.lastName.trim(),
+            p_email: form.email.trim(),
+            p_phone: form.phone.trim(),
+            p_mailing_address: form.mailingAddress.trim(),
+            p_default_gate: form.defaultGate,
+            p_emergency_contact_name:
+              form.emergencyContactName.trim(),
+            p_emergency_contact_phone:
+              form.emergencyContactPhone.trim(),
+            p_organization: form.organization.trim(),
+            p_device_type: form.deviceType,
+            p_id_document_path: null,
+            p_rules_acknowledged: rulesAcknowledged,
+            p_rules_version: "2026-09-01",
+            p_user_comments: null,
+          } as never
+        );
 
-      if (error) {
-        throw new Error(error.message);
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        router.replace("/dashboard?renewal=submitted");
+        router.refresh();
+      } else {
+        const rpcArguments = {
+          p_access_account_id: account.id,
+          p_first_name: form.firstName.trim(),
+          p_last_name: form.lastName.trim(),
+          p_email: form.email.trim(),
+          p_phone: form.phone.trim(),
+          p_mailing_address: form.mailingAddress.trim(),
+          p_default_gate: form.defaultGate,
+          p_emergency_contact_name:
+            form.emergencyContactName.trim(),
+          p_emergency_contact_phone:
+            form.emergencyContactPhone.trim(),
+          p_id_document_path: null,
+          p_organization: form.organization.trim(),
+          p_device_type: form.deviceType,
+        };
+
+        const { error } = await supabase.rpc(
+          "complete_existing_account_setup",
+          rpcArguments as never
+        );
+
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        router.replace("/dashboard");
+        router.refresh();
       }
-
-      router.replace("/dashboard");
-      router.refresh();
     } catch (error) {
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Unable to complete account setup."
+          : isRenewalMode
+            ? "Unable to submit the renewal request."
+            : "Unable to complete account setup."
       );
     } finally {
       setIsSubmitting(false);
@@ -299,7 +399,7 @@ export default function ExistingAccountSetupWizard({
 
   return (
     <div className="account-wizard-layout">
-      <Card title="Complete Your Account Setup">
+      <Card title={isRenewalMode ? "Renew Your Access Account" : "Complete Your Account Setup"}>
         <div className="info-callout">
           <strong>
             Existing Access Account
@@ -307,9 +407,9 @@ export default function ExistingAccountSetupWizard({
           </strong>
 
           <p>
-            Please confirm your information and acknowledge the current
-            Kapāpala Ranch access rules. This setup only needs to be
-            completed once.
+            {isRenewalMode
+              ? "Review and update your information, provide any missing information, and acknowledge all current Kapāpala Ranch access rules. Your renewal will remain pending until approved by an administrator."
+              : "Please confirm your information and acknowledge the current Kapāpala Ranch access rules. This setup only needs to be completed once."}
           </p>
         </div>
 
@@ -743,10 +843,11 @@ export default function ExistingAccountSetupWizard({
               <div className="approval-icon">✓</div>
 
               <div>
-                <h2>Ready to Complete Setup</h2>
+                <h2>{isRenewalMode ? "Ready to Submit Renewal" : "Ready to Complete Setup"}</h2>
                 <p>
-                  Review the information below before completing your
-                  one-time account setup.
+                  {isRenewalMode
+                    ? "Review the information below before submitting your renewal request for administrative approval."
+                    : "Review the information below before completing your one-time account setup."}
                 </p>
               </div>
             </div>
