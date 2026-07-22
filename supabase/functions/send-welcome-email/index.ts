@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
+const IOS_APP_URL =
+  "https://apps.apple.com/us/app/kapapala-forest-reserve-access/id6786978124";
+
 type RequestBody = {
   access_account_id?: string;
 };
@@ -631,6 +634,66 @@ function buildApprovalEmailHtml({
                   </tr>
                 </table>
 
+                <div
+                  style="
+                    margin:22px 0 26px;
+                    padding:20px;
+                    background:#f6f3e9;
+                    border:1px solid #ded5bd;
+                    border-radius:10px;
+                  "
+                >
+                  <h2
+                    style="
+                      margin:0 0 8px;
+                      font-family:Georgia,'Times New Roman',serif;
+                      font-size:21px;
+                      color:#23452f;
+                    "
+                  >
+                    Download the iOS App
+                  </h2>
+
+                  <p style="margin:0 0 16px;">
+                    Use the Kapapala Forest Reserve Access app on your iPhone
+                    to submit requests, view gate conditions, and access
+                    approved gate combinations during authorized hours.
+                  </p>
+
+                  <table
+                    role="presentation"
+                    cellspacing="0"
+                    cellpadding="0"
+                    border="0"
+                    style="margin:0;"
+                  >
+                    <tr>
+                      <td
+                        align="center"
+                        bgcolor="#23452f"
+                        style="border-radius:8px;"
+                      >
+                        <a
+                          href="${IOS_APP_URL}"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style="
+                            display:inline-block;
+                            padding:14px 24px;
+                            font-family:Arial,Helvetica,sans-serif;
+                            font-size:15px;
+                            font-weight:700;
+                            color:#ffffff;
+                            text-decoration:none;
+                          "
+                        >
+                          Download on the App Store
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+
                 <p
                   style="
                     margin:18px 0 26px;
@@ -754,6 +817,9 @@ ${LOGIN_URL}
 Review current access information and rules before every visit:
 
 ${ACCESS_RULES_URL}
+
+Download the Kapāpala Forest Reserve Access iOS App:
+${IOS_APP_URL}
 
 Kapāpala Forest Reserve Access Portal:
 
