@@ -25,6 +25,9 @@ type ProfileRow = {
 const PORTAL_BASE_URL =
   "https://kapapalaforestreserveaccesssystem.netlify.app";
 
+const IOS_APP_URL =
+  "https://apps.apple.com/us/app/kapapala-forest-reserve-access/id6786978124";
+
 const LOGIN_URL = `${PORTAL_BASE_URL}/login`;
 const PASSWORD_SETUP_URL = `${PORTAL_BASE_URL}/set-password`;
 const COMPLETE_SETUP_URL =
@@ -584,6 +587,68 @@ function buildEmailHtml({
                   </a>
                 </p>
 
+                <div
+                  style="
+                    margin:24px 0;
+                    padding:20px;
+                    background:#f6f3e9;
+                    border:1px solid #ded5bd;
+                    border-radius:10px;
+                  "
+                >
+                  <h2
+                    style="
+                      margin:0 0 8px;
+                      font-family:Georgia,'Times New Roman',serif;
+                      font-size:21px;
+                      color:#23452f;
+                    "
+                  >
+                    Download the iOS App
+                  </h2>
+
+                  <p style="margin:0 0 16px;">
+                    After completing your account setup, you may use the
+                    Kapāpala Forest Reserve Access app on your iPhone to
+                    submit access requests, view gate conditions, manage your
+                    account, and access approved gate combinations during
+                    authorized hours.
+                  </p>
+
+                  <table
+                    role="presentation"
+                    cellspacing="0"
+                    cellpadding="0"
+                    border="0"
+                    style="margin:0;"
+                  >
+                    <tr>
+                      <td
+                        align="center"
+                        bgcolor="#23452f"
+                        style="border-radius:8px;"
+                      >
+                        <a
+                          href="${IOS_APP_URL}"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style="
+                            display:inline-block;
+                            padding:14px 24px;
+                            font-family:Arial,Helvetica,sans-serif;
+                            font-size:15px;
+                            font-weight:700;
+                            color:#ffffff;
+                            text-decoration:none;
+                          "
+                        >
+                          Download on the App Store
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+
                 <div style="
                   padding:20px;
                   background:#fff7e8;
@@ -596,8 +661,9 @@ function buildEmailHtml({
 
                   <p style="margin:8px 0 0;">
                     You must still submit access requests through
-                    the web portal. Approved requests will be sent
-                    through the existing text-message system.
+                    the New Web Portal as the Microsoft Online Form will be
+                    deactivated. Approved requests will be sent through the
+                    existing text-message system.
                   </p>
                 </div>
 
@@ -606,7 +672,10 @@ function buildEmailHtml({
                 <p style="margin:28px 0 0;">
                   Access requests must be submitted by
                   <strong>10:00 PM HST on the day before access</strong>.
-                  Entry is limited to one gate per day.
+                  Entry is limited to one gate per day. Please note that,
+                  effective September 1, the Microsoft Online Form will be
+                  deactivated, and you will be required to use the Kapāpala
+                  Forest Reserve Access Portal to submit all requests.
                 </p>
 
                 <p style="margin:24px 0 0;">
@@ -688,9 +757,15 @@ Set up or reset your password:
 
 ${PASSWORD_SETUP_URL}
 
-Basic / Flip Phone users must still submit access requests through the web portal. Approved requests will be sent through the existing text-message system.
+Download the Kapāpala Forest Reserve Access iOS App:
 
-Access requests must be submitted by 10:00 PM HST on the day before access. Entry is limited to one gate per day.${guideText}
+${IOS_APP_URL}
+
+After completing your account setup, you may use either the iOS app or the web portal to submit access requests and manage your account.
+
+Basic / Flip Phone users must still submit access requests through the New Web Portal as the Microsoft Online Form will be deactivated. Approved requests will be sent through the existing text-message system.
+
+Access requests must be submitted by 10:00 PM HST on the day before access. Entry is limited to one gate per day. Please note that, effective September 1, the Microsoft Online Form will be deactivated, and you will be required to use the Kapāpala Forest Reserve Access Portal to submit all requests.${guideText}
 
 Portal:
 
