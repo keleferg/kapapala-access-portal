@@ -1095,9 +1095,12 @@ export default function AccessAccountManagement({
                     View Full Profile
                   </Link>
 
-                  <button className="button secondary" type="button">
-                    Renew
-                  </button>
+                  <Link
+                    className="button secondary"
+                    href="/admin/access-accounts/renewals"
+                  >
+                    Review Renewal Requests
+                  </Link>
 
                   <button className="button secondary" type="button">
                     Send SMS

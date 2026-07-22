@@ -34,6 +34,61 @@ function formatIdDate(value: string | null | undefined) {
   return value;
 }
 
+const HAWAII_TIME_ZONE = "Pacific/Honolulu";
+const RENEWAL_WINDOW_DAYS = 30;
+
+function getHawaiiDateString(date = new Date()) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: HAWAII_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  const parts = formatter.formatToParts(date);
+
+  const year =
+    parts.find((part) => part.type === "year")?.value || "";
+
+  const month =
+    parts.find((part) => part.type === "month")?.value || "";
+
+  const day =
+    parts.find((part) => part.type === "day")?.value || "";
+
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysToDateString(
+  value: string,
+  days: number
+) {
+  const [year, month, day] = value
+    .slice(0, 10)
+    .split("-")
+    .map(Number);
+
+  const date = new Date(
+    Date.UTC(year, month - 1, day)
+  );
+
+  date.setUTCDate(date.getUTCDate() + days);
+
+  return date.toISOString().slice(0, 10);
+}
+
+function formatDisplayDate(
+  value: string | null | undefined
+) {
+  if (!value) return "—";
+
+  const [year, month, day] = value
+    .slice(0, 10)
+    .split("-");
+
+  return `${month}/${day}/${year}`;
+}
+
 function formatReviewFlag(flag: string) {
   return flag
     .replace(/_/g, " ")
@@ -118,7 +173,6 @@ export default function AccessAccountProfile({
   const [savingProfile, setSavingProfile] = useState(false);
   const [activatingAccount, setActivatingAccount] = useState(false);
   const [suspendingAccount, setSuspendingAccount] = useState(false);
-  const [renewingAccount, setRenewingAccount] = useState(false);
   const [revokingAccount, setRevokingAccount] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
@@ -306,31 +360,6 @@ export default function AccessAccountProfile({
       alert(error instanceof Error ? error.message : "Unable to save notes.");
     } finally {
       setSavingNotes(false);
-    }
-  }
-
-  async function renewAccount() {
-    setRenewingAccount(true);
-
-    try {
-      const response = await fetch(`/api/access-accounts/${accountId}/renew`, {
-        method: "POST",
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        alert(result.error || "Unable to renew account.");
-        return;
-      }
-
-      await refresh();
-      await refreshTimeline();
-      alert("Account renewed.");
-    } catch (error) {
-      alert(error instanceof Error ? error.message : "Unable to renew account.");
-    } finally {
-      setRenewingAccount(false);
     }
   }
 
@@ -588,6 +617,57 @@ export default function AccessAccountProfile({
 
   const accountStatus = account.status || "pending";
   const hasAccessId = Boolean(account.access_id);
+
+  const accountExpirationDate =
+    account.expires_at
+      ? String(account.expires_at).slice(0, 10)
+      : null;
+
+  const currentHawaiiDate = getHawaiiDateString();
+
+  const renewalWindowStart =
+    accountExpirationDate
+      ? addDaysToDateString(
+          accountExpirationDate,
+          -RENEWAL_WINDOW_DAYS
+        )
+      : null;
+
+  const isExpiredAccount =
+    accountStatus === "expired";
+
+  const isActiveWithinRenewalWindow =
+    accountStatus === "active" &&
+    accountExpirationDate !== null &&
+    renewalWindowStart !== null &&
+    currentHawaiiDate >= renewalWindowStart &&
+    currentHawaiiDate <= accountExpirationDate;
+
+  const canRenewAccount =
+    hasAccessId &&
+    (
+      isExpiredAccount ||
+      isActiveWithinRenewalWindow
+    );
+
+  const renewalEligibilityMessage =
+    isExpiredAccount
+      ? "This expired account is eligible for renewal."
+      : isActiveWithinRenewalWindow
+        ? `This account expires on ${formatDisplayDate(
+            accountExpirationDate
+          )} and is eligible for renewal now.`
+        : accountStatus === "active" &&
+            accountExpirationDate &&
+            renewalWindowStart
+          ? `Renewal becomes available on ${formatDisplayDate(
+              renewalWindowStart
+            )}.`
+          : accountStatus === "active"
+            ? "This active account does not have an expiration date."
+            : `Accounts with a status of ${titleCase(
+                accountStatus
+              )} are not eligible for standard renewal.`;
 
   const hasVisibleIdReviewWarning =
     idReview?.id_review_status === "warning" ||
@@ -1244,24 +1324,25 @@ export default function AccessAccountProfile({
                 </button>
               )}
 
-              <button
+              <Link
                 className="button secondary"
-                type="button"
-                onClick={renewAccount}
-                disabled={
-                  renewingAccount ||
-                  !hasAccessId ||
-                  revokingAccount ||
-                  deletingAccount
-                }
-                title={
-                  hasAccessId
-                    ? "Renew this account"
-                    : "Activate the account before renewing"
-                }
+                href="/admin/access-accounts/renewals"
               >
-                {renewingAccount ? "Renewing..." : "Renew"}
-              </button>
+                Review Renewal Requests
+              </Link>
+
+              <p
+                className="muted"
+                style={{
+                  gridColumn: "1 / -1",
+                  margin: "0",
+                  fontSize: "0.85rem",
+                }}
+              >
+                {canRenewAccount
+                  ? "This account is eligible to submit a renewal request. Renewal occurs only after the user completes the renewal wizard and an administrator approves the request."
+                  : renewalEligibilityMessage}
+              </p>
 
               <button className="button secondary" type="button">
                 Send SMS

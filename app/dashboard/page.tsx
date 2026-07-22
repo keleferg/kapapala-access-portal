@@ -7,6 +7,7 @@ import WeatherCard from "../../components/dashboard/WeatherCard";
 import GateStatusSection from "../../components/dashboard/GateStatusSection";
 import NoticesCard from "../../components/dashboard/NoticesCard";
 import StewardshipCard from "../../components/dashboard/StewardshipCard";
+import RenewalStatusCard from "../../components/dashboard/RenewalStatusCard";
 
 export default function DashboardPage() {
   return (
@@ -20,6 +21,8 @@ export default function DashboardPage() {
         <NextTripCard />
         <WeatherCard />
       </div>
+
+      <RenewalStatusCard />
 
       <GateStatusSection />
 
