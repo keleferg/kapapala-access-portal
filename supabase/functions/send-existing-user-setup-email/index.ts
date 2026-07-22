@@ -30,6 +30,8 @@ const IOS_APP_URL =
 
 const LOGIN_URL = `${PORTAL_BASE_URL}/login`;
 const PASSWORD_SETUP_URL = `${PORTAL_BASE_URL}/set-password`;
+const ACTIVATION_REDIRECT_URL =
+  `${PORTAL_BASE_URL}/auth/callback?next=/set-password`;
 const COMPLETE_SETUP_URL =
   `${PORTAL_BASE_URL}/complete-account-setup`;
 const LOGO_URL = `${PORTAL_BASE_URL}/kapapala-access-logo.png`;
@@ -213,13 +215,66 @@ serve(async (req: Request) => {
     const accessId =
       account.access_id?.trim() || "Not assigned";
 
+    const { data: activationData, error: activationError } =
+      await supabase.auth.admin.generateLink({
+        type: "recovery",
+        email: recipientEmail,
+        options: {
+          redirectTo: ACTIVATION_REDIRECT_URL,
+        },
+      });
+
+    if (activationError) {
+      const message =
+        `Unable to generate activation link: ${activationError.message}`;
+
+      await supabase
+        .from("access_accounts")
+        .update({
+          setup_intro_email_last_error: message,
+        })
+        .eq("id", accessAccountId);
+
+      return jsonResponse(
+        {
+          success: false,
+          error: message,
+        },
+        500
+      );
+    }
+
+    const activationLink =
+      activationData?.properties?.action_link?.trim() || "";
+
+    if (!activationLink) {
+      const message =
+        "Supabase did not return an activation link.";
+
+      await supabase
+        .from("access_accounts")
+        .update({
+          setup_intro_email_last_error: message,
+        })
+        .eq("id", accessAccountId);
+
+      return jsonResponse(
+        {
+          success: false,
+          error: message,
+        },
+        500
+      );
+    }
+
     const subject =
-      "Action Required: Set Up Your New Kapāpala Access Account";
+      "Action Required: Activate Your Kapāpala Access Account";
 
     const html = buildEmailHtml({
       firstName,
       accessId,
       email: recipientEmail,
+      activationLink,
       scribeGuideUrl,
     });
 
@@ -227,6 +282,7 @@ serve(async (req: Request) => {
       firstName,
       accessId,
       email: recipientEmail,
+      activationLink,
       scribeGuideUrl,
     });
 
@@ -320,11 +376,13 @@ function buildEmailHtml({
   firstName,
   accessId,
   email,
+  activationLink,
   scribeGuideUrl,
 }: {
   firstName: string;
   accessId: string;
   email: string;
+  activationLink: string;
   scribeGuideUrl: string;
 }): string {
   const guideSection = scribeGuideUrl
@@ -340,8 +398,8 @@ function buildEmailHtml({
         </strong>
 
         <p style="margin:8px 0 12px;">
-          Follow the illustrated guide for help signing in,
-          completing setup, and submitting a request.
+          Follow the illustrated guide for help activating your
+          account and submitting an access request.
         </p>
 
         <a
@@ -367,7 +425,7 @@ function buildEmailHtml({
       name="viewport"
       content="width=device-width, initial-scale=1"
     />
-    <title>Set Up Your Kapāpala Access Account</title>
+    <title>Activate Your Kapāpala Access Account</title>
   </head>
 
   <body style="margin:0; padding:0; background:#f2f0e9;">
@@ -378,8 +436,7 @@ function buildEmailHtml({
       opacity:0;
       color:transparent;
     ">
-      Complete your account setup before submitting your next
-      Kapāpala access request.
+      Activate your Kapāpala access account by September 1, 2026.
     </div>
 
     <table
@@ -411,7 +468,7 @@ function buildEmailHtml({
               <td align="center" style="padding:30px 28px 24px;">
                 <img
                   src="${LOGO_URL}"
-                  alt="Kapāpala Ranch"
+                  alt="Kapāpala Forest Reserve Access"
                   width="390"
                   style="
                     display:block;
@@ -451,7 +508,7 @@ function buildEmailHtml({
                   line-height:1.2;
                   color:#ffffff;
                 ">
-                  Complete Your Account Setup
+                  Activate Your Access Account
                 </h1>
               </td>
             </tr>
@@ -469,10 +526,14 @@ function buildEmailHtml({
                 </p>
 
                 <p style="margin:0 0 20px;">
-                  Kapāpala Forest Reserve is transitioning to a
-                  new online access system. Your existing access
-                  account has been transferred, and your Access ID
-                  remains unchanged.
+                  The new Kapāpala Forest Reserve Access System is
+                  now live.
+                </p>
+
+                <p style="margin:0 0 20px;">
+                  To continue requesting access to Kapāpala Forest
+                  Reserve, you must activate your existing account
+                  by <strong>September 1, 2026</strong>.
                 </p>
 
                 <table
@@ -499,7 +560,7 @@ function buildEmailHtml({
                         text-transform:uppercase;
                         color:#657069;
                       ">
-                        Your Access ID
+                        Your Existing Access ID
                       </div>
 
                       <div style="
@@ -515,26 +576,19 @@ function buildEmailHtml({
                   </tr>
                 </table>
 
-                <p style="margin:0 0 10px;">
-                  Before submitting your next request, you must:
+                <p style="margin:0 0 20px;">
+                  Please do not submit a new account application.
+                  Use the personalized activation button below to
+                  connect to your existing account and complete the
+                  required setup.
                 </p>
-
-                <ul style="margin:0 0 24px; padding-left:24px;">
-                  <li>Confirm your contact information.</li>
-                  <li>Confirm your emergency contact.</li>
-                  <li>Select the device used for gate codes.</li>
-                  <li>Confirm your preferred gate.</li>
-                  <li>
-                    Upload a current government ID when required.
-                  </li>
-                </ul>
 
                 <table
                   role="presentation"
                   cellspacing="0"
                   cellpadding="0"
                   border="0"
-                  style="margin:0 0 16px;"
+                  style="margin:0 0 24px;"
                 >
                   <tr>
                     <td
@@ -543,144 +597,147 @@ function buildEmailHtml({
                       style="border-radius:8px;"
                     >
                       <a
-                        href="${LOGIN_URL}"
+                        href="${escapeHtml(activationLink)}"
                         style="
                           display:inline-block;
-                          padding:14px 24px;
+                          padding:15px 26px;
                           font-family:Arial,Helvetica,sans-serif;
-                          font-size:15px;
+                          font-size:16px;
                           font-weight:700;
                           color:#ffffff;
                           text-decoration:none;
                         "
                       >
-                        Sign In and Complete Setup
+                        Activate Your Existing Account
                       </a>
                     </td>
                   </tr>
                 </table>
 
                 <p style="
-                  margin:0 0 22px;
+                  margin:0 0 24px;
                   font-size:14px;
                   color:#657069;
                 ">
-                  Sign-in email:
+                  Account email:
                   <strong>${escapeHtml(email)}</strong>
                 </p>
 
-                <p style="margin:0 0 14px;">
-                  First-time users or users who do not remember
-                  their password should use the password setup page:
+                <p style="margin:0 0 10px;">
+                  During activation, you will be asked to:
                 </p>
 
-                <p style="margin:0 0 24px;">
-                  <a
-                    href="${PASSWORD_SETUP_URL}"
-                    style="
-                      color:#23452f;
-                      font-weight:700;
-                      text-decoration:underline;
-                    "
-                  >
-                    Set Up or Reset Your Password
-                  </a>
-                </p>
+                <ul style="margin:0 0 24px; padding-left:24px;">
+                  <li>Create or reset your password.</li>
+                  <li>Verify your name, email address, and phone number.</li>
+                  <li>Confirm your mailing address.</li>
+                  <li>Select your preferred gate.</li>
+                  <li>Provide emergency contact information.</li>
+                  <li>Select the device you will use to receive gate information.</li>
+                  <li>Upload a valid government-issued ID if one is not already on file.</li>
+                  <li>Review and accept the Kapāpala Forest Reserve access rules.</li>
+                </ul>
 
-                <div
-                  style="
-                    margin:24px 0;
-                    padding:20px;
-                    background:#f6f3e9;
-                    border:1px solid #ded5bd;
-                    border-radius:10px;
-                  "
-                >
-                  <h2
-                    style="
-                      margin:0 0 8px;
-                      font-family:Georgia,'Times New Roman',serif;
-                      font-size:21px;
-                      color:#23452f;
-                    "
-                  >
-                    Download the iOS App
+                <div style="
+                  margin:24px 0;
+                  padding:20px;
+                  background:#f6f3e9;
+                  border:1px solid #ded5bd;
+                  border-radius:10px;
+                ">
+                  <h2 style="
+                    margin:0 0 12px;
+                    font-family:Georgia,'Times New Roman',serif;
+                    font-size:21px;
+                    color:#23452f;
+                  ">
+                    Submit Access Requests
                   </h2>
 
                   <p style="margin:0 0 16px;">
-                    After completing your account setup, you may use the
-                    Kapāpala Forest Reserve Access app on your iPhone to
-                    submit access requests, view gate conditions, manage your
-                    account, and access approved gate combinations during
-                    authorized hours.
+                    Once your activation is complete, you may use
+                    either of the following apps to submit your
+                    access requests.
                   </p>
 
-                  <table
-                    role="presentation"
-                    cellspacing="0"
-                    cellpadding="0"
-                    border="0"
-                    style="margin:0;"
-                  >
-                    <tr>
-                      <td
-                        align="center"
-                        bgcolor="#23452f"
-                        style="border-radius:8px;"
-                      >
-                        <a
-                          href="${IOS_APP_URL}"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style="
-                            display:inline-block;
-                            padding:14px 24px;
-                            font-family:Arial,Helvetica,sans-serif;
-                            font-size:15px;
-                            font-weight:700;
-                            color:#ffffff;
-                            text-decoration:none;
-                          "
-                        >
-                          Download on the App Store
-                        </a>
-                      </td>
-                    </tr>
-                  </table>
+                  <p style="margin:0 0 10px;">
+                    <strong>Kapāpala Web App</strong><br />
+                    <a href="${PORTAL_BASE_URL}/" style="color:#23452f; font-weight:700; text-decoration:underline;">
+                      Open the Web App
+                    </a>
+                  </p>
+
+                  <p style="margin:0;">
+                    <strong>Kapāpala iOS App</strong><br />
+                    <a href="${IOS_APP_URL}" style="color:#23452f; font-weight:700; text-decoration:underline;">
+                      Download on the App Store
+                    </a>
+                  </p>
                 </div>
 
                 <div style="
+                  margin:24px 0;
                   padding:20px;
                   background:#fff7e8;
                   border:1px solid #e7cf9c;
                   border-radius:10px;
                 ">
                   <strong style="color:#6b4b16;">
-                    Basic / Flip Phone Users
+                    Important Transition Information
                   </strong>
 
                   <p style="margin:8px 0 0;">
-                    You must still submit access requests through
-                    the New Web Portal as the Microsoft Online Form will be
-                    deactivated. Approved requests will be sent through the
-                    existing text-message system.
+                    The Microsoft Form will remain available through
+                    <strong>September 1, 2026</strong>. However, we
+                    strongly encourage you to begin using either the
+                    iOS App or the Web App now so you can become
+                    familiar with the new process.
+                  </p>
+
+                  <p style="margin:12px 0 0;">
+                    After <strong>September 1, 2026</strong>, the Web
+                    App and iOS App will be the only ways to submit
+                    access requests.
                   </p>
                 </div>
 
+                <p style="margin:0 0 20px;">
+                  Both apps allow you to manage your account, save
+                  vehicles, submit access requests, review upcoming
+                  trips, view gate conditions, and access approved
+                  gate information.
+                </p>
+
+                <p style="margin:0 0 20px;">
+                  Please complete your activation no later than
+                  <strong>September 1, 2026</strong>. Accounts that
+                  have not completed activation may be unable to
+                  submit new access requests through the new system.
+                </p>
+
                 ${guideSection}
 
-                <p style="margin:28px 0 0;">
-                  Access requests must be submitted by
-                  <strong>10:00 PM HST on the day before access</strong>.
-                  Entry is limited to one gate per day. Please note that,
-                  effective September 1, the Microsoft Online Form will be
-                  deactivated, and you will be required to use the Kapāpala
-                  Forest Reserve Access Portal to submit all requests.
+                <p style="margin:24px 0 0;">
+                  This email is intended for the authorized holder
+                  of Access ID ${escapeHtml(accessId)}. Do not
+                  forward the activation link or share your account
+                  credentials.
+                </p>
+
+                <p style="margin:24px 0 0;">
+                  For assistance, contact:<br />
+                  <strong>Kapāpala Forest Reserve Access</strong><br />
+                  <a href="mailto:operations@kapapalaranch.com" style="color:#23452f;">
+                    operations@kapapalaranch.com
+                  </a><br />
+                  <a href="tel:+18089378391" style="color:#23452f;">
+                    808-937-8391
+                  </a>
                 </p>
 
                 <p style="margin:24px 0 0;">
                   Mahalo,<br />
-                  <strong>Kapāpala Ranch Operations</strong>
+                  <strong>Kapāpala Forest Reserve Access Team</strong>
                 </p>
               </td>
             </tr>
@@ -698,14 +755,7 @@ function buildEmailHtml({
                 "
               >
                 Kapāpala Forest Reserve Access System<br />
-
-                <a
-                  href="${PORTAL_BASE_URL}"
-                  style="
-                    color:#23452f;
-                    text-decoration:underline;
-                  "
-                >
+                <a href="${PORTAL_BASE_URL}/" style="color:#23452f; text-decoration:underline;">
                   ${PORTAL_BASE_URL}
                 </a>
               </td>
@@ -723,11 +773,13 @@ function buildEmailText({
   firstName,
   accessId,
   email,
+  activationLink,
   scribeGuideUrl,
 }: {
   firstName: string;
   accessId: string;
   email: string;
+  activationLink: string;
   scribeGuideUrl: string;
 }): string {
   const guideText = scribeGuideUrl
@@ -740,39 +792,62 @@ ${scribeGuideUrl}`
 
   return `Aloha ${firstName},
 
-ACTION REQUIRED: COMPLETE YOUR KAPĀPALA ACCESS ACCOUNT SETUP
+ACTION REQUIRED: ACTIVATE YOUR KAPĀPALA ACCESS ACCOUNT
 
-Kapāpala Forest Reserve is transitioning to a new online access system. Your existing account has been transferred.
+The new Kapāpala Forest Reserve Access System is now live.
+
+To continue requesting access to Kapāpala Forest Reserve, you must activate your existing account by September 1, 2026.
+
+Your current Access ID will remain the same:
 
 Access ID: ${accessId}
-Sign-in email: ${email}
 
-Before submitting your next request, you must confirm your contact and emergency information, select your gate-code device, confirm your preferred gate, and upload a current government ID when required.
+Please do not submit a new account application. Use the personalized activation link below to connect to your existing account and complete the required setup.
 
-Sign in and complete setup:
+ACTIVATE YOUR EXISTING ACCOUNT
 
-${LOGIN_URL}
+${activationLink}
 
-Set up or reset your password:
+Account email: ${email}
 
-${PASSWORD_SETUP_URL}
+During activation, you will be asked to:
 
-Download the Kapāpala Forest Reserve Access iOS App:
+- Create or reset your password
+- Verify your name, email address, and phone number
+- Confirm your mailing address
+- Select your preferred gate
+- Provide emergency contact information
+- Select the device you will use to receive gate information
+- Upload a valid government-issued ID if one is not already on file
+- Review and accept the Kapāpala Forest Reserve access rules
 
+Once your activation is complete, you may use either of the following apps to submit your access requests.
+
+Kapāpala Web App:
+${PORTAL_BASE_URL}/
+
+Kapāpala iOS App:
 ${IOS_APP_URL}
 
-After completing your account setup, you may use either the iOS app or the web portal to submit access requests and manage your account.
+The Microsoft Form will remain available through September 1, 2026. However, we strongly encourage you to begin using either the iOS App or the Web App now so you can become familiar with the new process.
 
-Basic / Flip Phone users must still submit access requests through the New Web Portal as the Microsoft Online Form will be deactivated. Approved requests will be sent through the existing text-message system.
+After September 1, 2026, the Web App and iOS App will be the only ways to submit access requests.
 
-Access requests must be submitted by 10:00 PM HST on the day before access. Entry is limited to one gate per day. Please note that, effective September 1, the Microsoft Online Form will be deactivated, and you will be required to use the Kapāpala Forest Reserve Access Portal to submit all requests.${guideText}
+Both apps allow you to manage your account, save vehicles, submit access requests, review upcoming trips, view gate conditions, and access approved gate information.
 
-Portal:
+Please complete your activation no later than September 1, 2026. Accounts that have not completed activation may be unable to submit new access requests through the new system.${guideText}
 
-${PORTAL_BASE_URL}
+This email is intended for the authorized holder of Access ID ${accessId}. Do not forward the activation link or share your account credentials.
+
+For assistance, contact:
+
+Kapāpala Forest Reserve Access
+operations@kapapalaranch.com
+808-937-8391
 
 Mahalo,
-Kapāpala Ranch Operations`;
+
+Kapāpala Forest Reserve Access Team`;
 }
 
 function jsonResponse(
