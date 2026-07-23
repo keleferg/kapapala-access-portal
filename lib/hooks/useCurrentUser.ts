@@ -15,42 +15,71 @@ type CurrentUserProfile = {
 
 export function useCurrentUser() {
   const [profile, setProfile] = useState<CurrentUserProfile | null>(null);
+  const [appRole, setAppRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function loadUser() {
     setLoading(true);
 
-    const supabase = getSupabaseClient();
+    try {
+      const supabase = getSupabaseClient();
 
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData.user;
+      const { data: userData, error: userError } =
+        await supabase.auth.getUser();
 
-    if (!user) {
+      if (userError) {
+        throw userError;
+      }
+
+      const user = userData.user;
+
+      if (!user) {
+        setProfile(null);
+        setAppRole(null);
+        return;
+      }
+
+      const [
+        { data: profileData, error: profileError },
+        { data: roleData, error: roleError },
+      ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, first_name, last_name, email, role")
+          .eq("id", user.id)
+          .single(),
+        (supabase as any).rpc("current_app_role"),
+      ]);
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      if (roleError) {
+        throw roleError;
+      }
+
+      setProfile(profileData as CurrentUserProfile);
+      setAppRole((roleData ?? "user") as UserRole);
+    } catch (error) {
+      console.error("Unable to load current user:", error);
       setProfile(null);
+      setAppRole(null);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, first_name, last_name, email, role")
-      .eq("id", user.id)
-      .single();
-
-    setProfile(data ? (data as CurrentUserProfile) : null);
-    setLoading(false);
   }
 
   useEffect(() => {
-    loadUser();
+    void loadUser();
   }, []);
 
   return {
     profile,
-    role: profile?.role ?? null,
+    role: appRole,
     loading,
     isSignedIn: Boolean(profile),
-    isAdmin: canAccessAdmin(profile?.role),
+    isAdmin: canAccessAdmin(appRole),
     refresh: loadUser,
   };
 }
