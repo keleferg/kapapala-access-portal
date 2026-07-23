@@ -94,7 +94,7 @@ export default function LoginForm() {
       const { error } = await supabase.auth.resetPasswordForEmail(
         trimmedEmail,
         {
-          redirectTo: `${window.location.origin}/auth/callback?next=/set-password`,
+          redirectTo: `${window.location.origin}/set-password`,
         }
       );
 
