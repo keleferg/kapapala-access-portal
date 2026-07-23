@@ -730,9 +730,6 @@ function buildEmailHtml({
                   <a href="mailto:operations@kapapalaranch.com" style="color:#23452f;">
                     operations@kapapalaranch.com
                   </a><br />
-                  <a href="tel:+18089378391" style="color:#23452f;">
-                    808-937-8391
-                  </a>
                 </p>
 
                 <p style="margin:24px 0 0;">
@@ -843,7 +840,6 @@ For assistance, contact:
 
 Kapāpala Forest Reserve Access
 operations@kapapalaranch.com
-808-937-8391
 
 Mahalo,
 
