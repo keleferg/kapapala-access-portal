@@ -1,6 +1,6 @@
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 
-export type AppRole = 'public_user' | 'admin' | 'super_admin';
+export type AppRole = 'user' | 'public_user' | 'admin' | 'super_user';
 
 export type CurrentUser = {
   id: string;
@@ -19,23 +19,37 @@ export async function getCurrentUserClient(): Promise<CurrentUser | null> {
 
   if (!user) return null;
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, email, first_name, last_name, role')
-    .eq('id', user.id)
-    .single();
+  const [{ data: profile }, { data: roleData, error: roleError }] =
+    await Promise.all([
+      supabase
+        .from('profiles')
+        .select('id, email, first_name, last_name')
+        .eq('id', user.id)
+        .single(),
+      (supabase as any).rpc('current_app_role'),
+    ]);
 
-  const typedProfile = profile as { email?: string | null; first_name?: string | null; last_name?: string | null; role?: AppRole } | null;
+  if (roleError) {
+    console.error('Unable to load current app role:', roleError);
+  }
+
+  const typedProfile = profile as {
+    email?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+  } | null;
 
   return {
     id: user.id,
     email: user.email ?? typedProfile?.email ?? '',
-    firstName: typedProfile?.first_name || user.user_metadata?.first_name || '',
-    lastName: typedProfile?.last_name || user.user_metadata?.last_name || '',
-    role: (typedProfile?.role ?? 'public_user') as AppRole,
+    firstName:
+      typedProfile?.first_name || user.user_metadata?.first_name || '',
+    lastName:
+      typedProfile?.last_name || user.user_metadata?.last_name || '',
+    role: (roleData ?? 'user') as AppRole,
   };
 }
 
 export function isAdminRole(role?: AppRole | null) {
-  return role === 'admin' || role === 'super_admin';
+  return role === 'admin' || role === 'super_user';
 }

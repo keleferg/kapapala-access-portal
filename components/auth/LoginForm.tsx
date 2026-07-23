@@ -4,11 +4,13 @@ import { useState } from "react";
 import Card from "../ui/Card";
 import { getSupabaseClient } from "../../lib/supabaseClient";
 
-type UserRole = "admin" | "staff" | "public_user" | string | null;
-
-type ProfileRow = {
-  role: UserRole;
-};
+type UserRole =
+  | "user"
+  | "admin"
+  | "super_user"
+  | "public_user"
+  | string
+  | null;
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
@@ -48,22 +50,18 @@ export default function LoginForm() {
         return;
       }
 
-      const { data: profile, error: profileError } = await (supabase as any)
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
+      const { data: roleData, error: roleError } = await (supabase as any)
+        .rpc("current_app_role");
 
-      if (profileError) {
-        console.error("Unable to load profile after sign in:", profileError);
+      if (roleError) {
+        console.error("Unable to load app role after sign in:", roleError);
         window.location.href = "/dashboard";
         return;
       }
 
-      const typedProfile = profile as ProfileRow | null;
-      const userRole = typedProfile?.role;
+      const userRole = roleData as UserRole;
 
-      if (userRole === "admin" || userRole === "staff") {
+      if (userRole === "admin" || userRole === "super_user") {
         window.location.href = "/admin";
       } else {
         window.location.href = "/dashboard";

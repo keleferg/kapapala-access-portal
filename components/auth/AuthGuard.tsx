@@ -29,14 +29,21 @@ export default function AuthGuard({ mode, children }: { mode: GuardMode; childre
       }
 
       if (mode === 'admin') {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single();
-        const typedProfile = profile as { role?: AppRole } | null;
-        const role = typedProfile?.role;
-        setState(role === 'admin' || role === 'super_admin' ? 'allowed' : 'forbidden');
+        const { data: roleData, error: roleError } = await (supabase as any)
+          .rpc('current_app_role');
+
+        if (roleError) {
+          console.error('Unable to verify admin role:', roleError);
+          setState('forbidden');
+          return;
+        }
+
+        const role = roleData as AppRole;
+        setState(
+          role === 'admin' || role === 'super_user'
+            ? 'allowed'
+            : 'forbidden'
+        );
         return;
       }
 
