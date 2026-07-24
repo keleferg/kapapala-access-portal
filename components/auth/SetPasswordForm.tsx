@@ -16,20 +16,6 @@ export default function SetPasswordForm() {
 
   useEffect(() => {
     async function prepareSession() {
-      const url = new URL(window.location.href);
-      const code = url.searchParams.get("code");
-
-      if (code) {
-        const { error: exchangeError } =
-          await supabase.auth.exchangeCodeForSession(code);
-
-        if (exchangeError) {
-          setError(exchangeError.message);
-          setReady(false);
-          return;
-        }
-      }
-
       const {
         data: { session },
       } = await supabase.auth.getSession();
