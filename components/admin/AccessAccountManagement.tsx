@@ -1040,9 +1040,28 @@ export default function AccessAccountManagement({
                     <strong>{selected.applicant?.phone || "—"}</strong>
                   </div>
 
-                  <div>
-                    <span>Email</span>
-                    <strong>{getAccountEmail(selected) || "—"}</strong>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                  >
+                    <div>
+                      <span>Email</span>
+                      <strong>{getAccountEmail(selected) || "—"}</strong>
+                    </div>
+
+                    {getAccountEmail(selected) && (
+                      <a
+                        className="button primary"
+                        href={`mailto:${getAccountEmail(selected)}`}
+                        style={{ whiteSpace: "nowrap" }}
+                      >
+                        Send Email
+                      </a>
+                    )}
                   </div>
 
                   <div>

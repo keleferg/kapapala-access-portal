@@ -192,8 +192,12 @@ button:disabled {
   padding: var(--frame-space);
   border: 1px solid rgba(204, 216, 200, 0.8);
   border-radius: var(--brad-outer);
-  background: var(--bg--primary);
-  backdrop-filter: blur(12px);
+  background: linear-gradient(
+    180deg,
+    var(--forest) 0%,
+    var(--forest-dark) 100%
+  );
+  backdrop-filter: none;
   box-shadow: var(--shadow-card);
   overflow: visible;
 }
@@ -4892,9 +4896,11 @@ tbody tr:hover,
   padding: 1rem 0.75rem;
   border: 0;
   border-radius: 0;
-  background:
-    radial-gradient(circle at top left, rgba(124, 154, 109, 0.24), transparent 17rem),
-    linear-gradient(180deg, #173f2e 0%, #102f22 55%, #0b271c 100%);
+  background: linear-gradient(
+    180deg,
+    var(--forest) 0%,
+    var(--forest-dark) 100%
+  );
   box-shadow: 10px 0 32px rgba(12, 43, 30, 0.12);
   backdrop-filter: none;
 }
@@ -6825,3 +6831,48 @@ tbody tr:hover,
   }
 }
 
+/* BEGIN UNIVERSAL GREEN SIDEBAR */
+.sidebar.vertical-sidebar .sidebar__nav {
+  background:
+    linear-gradient(
+      180deg,
+      var(--forest) 0%,
+      var(--forest-dark) 100%
+    ) !important;
+  border-color: rgba(255, 255, 255, 0.14);
+  backdrop-filter: none;
+}
+
+.sidebar.vertical-sidebar .sidebar__brand figcaption,
+.sidebar.vertical-sidebar .user-id,
+.sidebar.vertical-sidebar .user-role,
+.sidebar.vertical-sidebar .sidebar__item--heading,
+.sidebar.vertical-sidebar .sidebar__link .text,
+.sidebar.vertical-sidebar .sidebar__footer-text strong,
+.sidebar.vertical-sidebar .sidebar__footer-text small {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+.sidebar.vertical-sidebar .sidebar__link .icon,
+.sidebar.vertical-sidebar .sidebar__footer-icon,
+.sidebar.vertical-sidebar .toggle-svg-icon,
+.sidebar.vertical-sidebar .codepen-logo {
+  color: rgba(255, 255, 255, 0.9) !important;
+  fill: rgba(255, 255, 255, 0.9) !important;
+}
+
+.sidebar.vertical-sidebar .sidebar__link:hover,
+.sidebar.vertical-sidebar .sidebar__link:focus-visible,
+.sidebar.vertical-sidebar .sidebar__link[aria-current="page"],
+.sidebar.vertical-sidebar .sidebar__link.active {
+  background: rgba(255, 255, 255, 0.14) !important;
+}
+
+.sidebar.vertical-sidebar .nav__toggle {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.sidebar.vertical-sidebar .nav__toggle:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+}
+/* END UNIVERSAL GREEN SIDEBAR */
