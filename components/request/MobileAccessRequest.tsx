@@ -4,8 +4,33 @@ import { useMemo, useState } from "react";
 import Card from "../ui/Card";
 import StatusBadge from "../ui/StatusBadge";
 
-const today = new Date().toISOString().slice(0, 10);
-const tomorrowDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+function getHawaiiDateString(offsetDays = 0): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Pacific/Honolulu",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = Number(parts.find((part) => part.type === "year")?.value);
+  const month = Number(parts.find((part) => part.type === "month")?.value);
+  const day = Number(parts.find((part) => part.type === "day")?.value);
+
+  if (!year || !month || !day) {
+    throw new Error("Unable to calculate the Hawaiʻi date.");
+  }
+
+  const adjusted = new Date(Date.UTC(year, month - 1, day + offsetDays));
+
+  return [
+    adjusted.getUTCFullYear(),
+    String(adjusted.getUTCMonth() + 1).padStart(2, "0"),
+    String(adjusted.getUTCDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+const today = getHawaiiDateString();
+const tomorrowDate = getHawaiiDateString(1);
 
 type Gate = "Wood Valley" | "Honanui" | "ʻĀinapō";
 type Purpose =

@@ -136,14 +136,37 @@ type PdfColumnStyle = {
   cellWidth: number;
 };
 
+function getHawaiiDateString(offsetDays = 0): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Pacific/Honolulu",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = Number(parts.find((part) => part.type === "year")?.value);
+  const month = Number(parts.find((part) => part.type === "month")?.value);
+  const day = Number(parts.find((part) => part.type === "day")?.value);
+
+  if (!year || !month || !day) {
+    throw new Error("Unable to calculate the Hawaiʻi date.");
+  }
+
+  const adjusted = new Date(Date.UTC(year, month - 1, day + offsetDays));
+
+  return [
+    adjusted.getUTCFullYear(),
+    String(adjusted.getUTCMonth() + 1).padStart(2, "0"),
+    String(adjusted.getUTCDate()).padStart(2, "0"),
+  ].join("-");
+}
+
 function todayMinus(days: number) {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  return date.toISOString().slice(0, 10);
+  return getHawaiiDateString(-days);
 }
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return getHawaiiDateString();
 }
 
 function formatDate(value: string | null) {

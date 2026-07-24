@@ -79,13 +79,26 @@ const PURPOSE_OPTIONS: PurposeOption[] = [
 ];
 
 function addDays(date: Date, days: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
 function toDateInputValue(date: Date) {
-  return date.toISOString().slice(0, 10);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Pacific/Honolulu",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  if (!year || !month || !day) {
+    throw new Error("Unable to calculate the Hawaiʻi date.");
+  }
+
+  return `${year}-${month}-${day}`;
 }
 
 function formatDisplayDate(value: string) {
