@@ -18,6 +18,8 @@ export type AccessAccount = {
   emergency_contact_phone: string | null;
   created_at: string;
   updated_at: string;
+  issued_at: string | null;
+  expires_at: string | null;
   applicant_first_name?: string | null;
   applicant_last_name?: string | null;
   applicant: {

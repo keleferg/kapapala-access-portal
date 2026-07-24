@@ -543,6 +543,8 @@ export async function GET() {
         default_gate,
         emergency_contact_name,
         emergency_contact_phone,
+        issued_at,
+        expires_at,
         created_at,
         updated_at,
         internal_notes,
