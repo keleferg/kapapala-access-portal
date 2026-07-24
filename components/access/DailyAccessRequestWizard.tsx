@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Card from "../ui/Card";
 import StatusBadge from "../ui/StatusBadge";
 import { getSupabaseClient } from "../../lib/supabaseClient";
@@ -154,6 +154,7 @@ export default function DailyAccessRequestWizard() {
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const submitLockRef = useRef(false);
 
   const [account, setAccount] = useState<AccessAccount | null>(null);
   const [gates, setGates] = useState<Gate[]>([]);
@@ -417,6 +418,10 @@ export default function DailyAccessRequestWizard() {
   }
 
   async function submitRequest() {
+    if (submitLockRef.current) {
+      return;
+    }
+
     const validationError = validateRequestForm();
 
     if (validationError) {
@@ -438,6 +443,7 @@ export default function DailyAccessRequestWizard() {
       additionalVehicles
     );
 
+    submitLockRef.current = true;
     setSubmitting(true);
 
     try {
@@ -469,6 +475,7 @@ export default function DailyAccessRequestWizard() {
     } catch (error) {
       alert(error instanceof Error ? error.message : "Unable to submit request.");
     } finally {
+      submitLockRef.current = false;
       setSubmitting(false);
     }
   }
