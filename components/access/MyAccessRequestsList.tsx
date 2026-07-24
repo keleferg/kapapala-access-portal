@@ -373,14 +373,12 @@ export default function MyAccessRequestsList() {
     try {
       const supabase = getSupabaseClient();
 
-      const { error } = await (supabase as any)
-        .from("daily_access_requests")
-        .update({
-          status: "cancelled",
-          pending_reason: null,
-        })
-        .eq("id", requestId)
-        .eq("status", "approved");
+      const { error } = await (supabase as any).rpc(
+        "cancel_access_request",
+        {
+          p_request_id: requestId,
+        }
+      );
 
       if (error) {
         console.error("Unable to cancel access request:", error);
