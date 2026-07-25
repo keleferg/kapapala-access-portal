@@ -1,0 +1,2 @@
+import AuthGuard from "@/components/auth/AuthGuard"; import MobilePublicShell from "@/components/mobile/MobilePublicShell"; import MyAccessRequestsList from "@/components/access/MyAccessRequestsList"; import Link from "next/link";
+export default function Page(){return <AuthGuard mode="user"><MobilePublicShell title="My Requests"><Link className="mobile-primary-action mobile-page-action" href="/mobile/new-request">New Access Request</Link><MyAccessRequestsList/></MobilePublicShell></AuthGuard>}

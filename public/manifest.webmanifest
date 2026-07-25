@@ -1,0 +1,12 @@
+{
+  "name": "Kapāpala Forest Reserve Access",
+  "short_name": "Kapāpala Access",
+  "description": "Public mobile access portal for Kapāpala Forest Reserve",
+  "start_url": "/mobile",
+  "display": "standalone",
+  "background_color": "#f4f6f2",
+  "theme_color": "#174d35",
+  "icons": [
+    {"src":"/kapapala_public_access_1024x1024.jpg","sizes":"1024x1024","type":"image/jpeg","purpose":"any maskable"}
+  ]
+}

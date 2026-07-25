@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import ExistingAccountSetupGuard from "../components/auth/ExistingAccountSetupGuard";
+import MobileDeviceRouter from "../components/mobile/MobileDeviceRouter";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,6 +18,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <ExistingAccountSetupGuard />
+        <MobileDeviceRouter />
         {children}
       </body>
     </html>

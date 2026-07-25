@@ -1,0 +1,2 @@
+import MobilePublicShell from "@/components/mobile/MobilePublicShell";
+export default function Page(){return <MobilePublicShell title="Information"><section className="mobile-info-list"><a href="https://kapapalaranch.com/forest-reserve-access" target="_blank" rel="noreferrer">Forest Reserve Access Information <span>›</span></a><a href="mailto:access@kapapalaranch.com">Contact Access Staff <span>›</span></a><a href="/logout">Sign Out <span>›</span></a></section></MobilePublicShell>}

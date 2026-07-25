@@ -6923,3 +6923,27 @@ tbody tr:hover,
   border-color: #e3a0a0;
   color: #8c2525;
 }
+
+/* Android / non-iPhone public mobile portal */
+body.mobile-public-active { background:#f4f6f2; overscroll-behavior-y:contain; }
+.mobile-public-shell { min-height:100dvh; max-width:720px; margin:0 auto; background:#f4f6f2; padding-bottom:calc(84px + env(safe-area-inset-bottom)); }
+.mobile-public-header { position:sticky; top:0; z-index:40; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; background:rgba(244,246,242,.96); backdrop-filter:blur(14px); border-bottom:1px solid rgba(23,77,53,.12); }
+.mobile-public-brand { display:flex; align-items:center; gap:10px; min-width:0; }
+.mobile-public-brand img { width:42px; height:42px; border-radius:12px; object-fit:cover; }
+.mobile-public-brand span { display:block; color:#5d7167; font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+.mobile-public-brand h1 { margin:1px 0 0; font-size:1.15rem; color:#173d2d; white-space:nowrap; }
+.mobile-desktop-link { border:0; background:#e3ebe6; color:#174d35; border-radius:999px; padding:9px 12px; font-weight:750; }
+.mobile-public-content { padding:14px 14px 8px; }
+.mobile-bottom-nav { position:fixed; z-index:50; left:50%; bottom:0; transform:translateX(-50%); width:min(720px,100%); display:grid; grid-template-columns:repeat(4,1fr); padding:8px 8px calc(8px + env(safe-area-inset-bottom)); background:rgba(255,255,255,.97); border-top:1px solid rgba(23,77,53,.15); box-shadow:0 -8px 25px rgba(25,57,43,.08); }
+.mobile-bottom-nav a { min-height:58px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; color:#68776f; text-decoration:none; border-radius:14px; }
+.mobile-bottom-nav a span { font-size:1.4rem; line-height:1; }.mobile-bottom-nav a small{font-weight:700}.mobile-bottom-nav a.active{background:#e1eee7;color:#174d35}
+.mobile-hero { background:linear-gradient(145deg,#174d35,#2d6b4e); color:white; border-radius:24px; padding:24px 20px; box-shadow:0 14px 34px rgba(23,77,53,.2); margin-bottom:14px; }
+.mobile-hero p{margin:0 0 5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;font-size:.72rem;opacity:.78}.mobile-hero h2{margin:0;font-size:1.85rem;color:white}.mobile-hero span{display:block;margin:9px 0 18px;line-height:1.5;opacity:.9}
+.mobile-primary-action { display:flex; min-height:50px; align-items:center; justify-content:center; padding:12px 18px; border-radius:15px; background:#fff; color:#174d35; text-decoration:none; font-weight:800; box-shadow:0 8px 18px rgba(0,0,0,.12); }
+.mobile-page-action{background:#174d35;color:white;margin-bottom:14px}.mobile-card-stack{display:grid;gap:12px;margin-bottom:14px}
+.mobile-public-content .card,.mobile-public-content .dashboard-card,.mobile-public-content .gate-status-card{border-radius:20px;box-shadow:0 7px 20px rgba(29,60,46,.08)}
+.mobile-public-content input,.mobile-public-content select,.mobile-public-content textarea,.mobile-public-content button,.mobile-public-content .button{min-height:48px;font-size:16px}
+.mobile-public-content .card-grid,.mobile-public-content .form-grid,.mobile-public-content .request-summary-grid{grid-template-columns:1fr!important}
+.mobile-public-content table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}.mobile-public-content .page-heading{display:none}
+.mobile-security-note{background:#fff6d8;border:1px solid #ead899;padding:12px;border-radius:14px;line-height:1.4}.mobile-reveal-button{width:100%;border:0;border-radius:18px;background:#174d35;color:#fff;font-weight:850;padding:16px}.mobile-gate-code{margin:18px 0;text-align:center;font-size:3rem;font-weight:900;letter-spacing:.18em;color:#174d35;background:#e8f1eb;border-radius:20px;padding:24px 12px}.mobile-info-list{display:grid;gap:10px}.mobile-info-list a{display:flex;justify-content:space-between;align-items:center;padding:18px;background:white;border-radius:18px;text-decoration:none;color:#173d2d;font-weight:750;box-shadow:0 7px 20px rgba(29,60,46,.08)}
+@media (min-width:768px){.mobile-public-shell{box-shadow:0 0 40px rgba(0,0,0,.08)}}
