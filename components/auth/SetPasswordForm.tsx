@@ -23,17 +23,33 @@ export default function SetPasswordForm() {
         const code = url.searchParams.get("code");
 
         /*
-         * PKCE recovery flow:
-         * Supabase returns a one-time authorization code.
+         * First check whether Supabase has already restored the recovery
+         * session. This can happen when the recovery verification endpoint
+         * redirects back after successfully authenticating the user.
          */
-        if (code) {
+        const {
+          data: { session: existingSession },
+          error: existingSessionError,
+        } = await supabase.auth.getSession();
+
+        if (existingSessionError) {
+          throw existingSessionError;
+        }
+
+        /*
+         * Only exchange a PKCE authorization code when there is not already
+         * an authenticated recovery session.
+         */
+        if (code && !existingSession) {
           const { error: exchangeError } =
             await supabase.auth.exchangeCodeForSession(code);
 
           if (exchangeError) {
             throw exchangeError;
           }
+        }
 
+        if (code) {
           url.searchParams.delete("code");
           window.history.replaceState(
             {},
