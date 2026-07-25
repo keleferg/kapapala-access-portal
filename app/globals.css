@@ -6885,3 +6885,41 @@ tbody tr:hover,
 .daily-request-row.sharepoint-request-row:hover {
   background: #fff2b8;
 }
+
+.admin-permit-report-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+
+.admin-permit-report-status strong {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.admin-permit-report-status span {
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.admin-permit-report-status--green {
+  background: #e7f5eb;
+  border-color: #9acbaa;
+  color: #245c36;
+}
+
+.admin-permit-report-status--yellow {
+  background: #fff7d6;
+  border-color: #e6c75a;
+  color: #705a00;
+}
+
+.admin-permit-report-status--red {
+  background: #fdeaea;
+  border-color: #e3a0a0;
+  color: #8c2525;
+}

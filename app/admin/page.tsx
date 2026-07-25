@@ -3,6 +3,7 @@ import AppShell from "../../components/layout/AppShell";
 import AdminOperationsTabs from "../../components/admin/AdminOperationsTabs";
 import LiveActivityBar from "../../components/admin/LiveActivityBar";
 import AdminTodayPermitsCard from "../../components/admin/AdminTodayPermitsCard";
+import AdminTomorrowPermitsCard from "../../components/admin/AdminTomorrowPermitsCard";
 
 const quickActions = [
   {
@@ -150,6 +151,7 @@ export default function AdminPage() {
         <LiveActivityBar />
 
         <AdminTodayPermitsCard />
+        <AdminTomorrowPermitsCard />
 
         <section className="admin-workspace">
           <div className="admin-section-heading">
