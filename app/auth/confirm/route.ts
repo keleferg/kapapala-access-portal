@@ -64,15 +64,15 @@ export async function GET(request: Request) {
     }
   );
 
-  const { error } = await supabase.auth.verifyOtp({
+  const { data, error } = await supabase.auth.verifyOtp({
     token_hash: tokenHash,
     type,
   });
 
-  if (error) {
+  if (error || !data.session) {
     console.error(
       "Unable to verify Supabase recovery token:",
-      error.message
+      error?.message ?? "Recovery session was not returned."
     );
 
     return NextResponse.redirect(
@@ -83,7 +83,18 @@ export async function GET(request: Request) {
     );
   }
 
-  return NextResponse.redirect(
-    new URL(next, requestUrl.origin)
-  );
+  /*
+   * Explicitly hand the verified recovery session to the browser.
+   * URL fragments are not sent to the server and SetPasswordForm removes
+   * these values immediately after establishing the browser session.
+   */
+  const destination = new URL(next, requestUrl.origin);
+
+  destination.hash = new URLSearchParams({
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+    type: "recovery",
+  }).toString();
+
+  return NextResponse.redirect(destination);
 }
