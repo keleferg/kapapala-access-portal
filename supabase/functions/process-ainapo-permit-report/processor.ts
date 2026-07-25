@@ -569,9 +569,35 @@ export async function processAinapoPdf(args: {
     const parsedPermits = parsePermitRows(rawText);
 
     if (parsedPermits.length === 0) {
-      throw new Error(
-        "No DLNR permit rows could be extracted from the PDF.",
-      );
+      const completedAt = new Date().toISOString();
+
+      const { error: emptyReportUpdateError } = await supabase
+        .from("ainapo_permit_reports")
+        .update({
+          processing_status: "complete",
+          permit_count: 0,
+          matched_request_count: 0,
+          unmatched_permit_count: 0,
+          last_checked_at: completedAt,
+          completed_at: completedAt,
+          error_message: null,
+          updated_at: completedAt,
+        })
+        .eq("id", reportId);
+
+      if (emptyReportUpdateError) {
+        throw new Error(
+          `Unable to complete empty report record: ` +
+            emptyReportUpdateError.message,
+        );
+      }
+
+      return {
+        permit_count: 0,
+        matched_request_count: 0,
+        unmatched_permit_count: 0,
+        extracted_text_preview: rawText.slice(0, 500),
+      };
     }
 
     const storedPermits = await upsertPermits(
