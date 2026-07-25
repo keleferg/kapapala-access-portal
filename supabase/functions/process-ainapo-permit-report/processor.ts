@@ -163,7 +163,7 @@ function parsePermitRows(text: string): ParsedPermit[] {
    * 2026-21861 Yarberry, Echo 09-07-2026 11-07-2026 3
    */
   const pattern =
-    /(\d{4}-\d{5})\s+(.+?)\s+(\d{2}-\d{2}-\d{4})\s+(\d{2}-\d{2}-\d{4})\s+(\d+)(?=\s|$)/g;
+    /(\d{4}-\d{5})\s+(.+?)\s+(?:(\d{10})\s+)?(\d{2}-\d{2}-\d{4})\s+(\d{2}-\d{2}-\d{4})\s+(\d+)(?=\s|$)/g;
 
   const permits: ParsedPermit[] = [];
   let match: RegExpExecArray | null;
@@ -174,9 +174,10 @@ function parsePermitRows(text: string): ParsedPermit[] {
 
     const permitNo = match[1].trim();
     const permittee = match[2].trim();
-    const checkInRaw = match[3].trim();
-    const checkOutRaw = match[4].trim();
-    const guestCount = Number.parseInt(match[5], 10);
+    const phone = match[3]?.trim() || null;
+    const checkInRaw = match[4].trim();
+    const checkOutRaw = match[5].trim();
+    const guestCount = Number.parseInt(match[6], 10);
 
     permits.push({
       permit_no: permitNo,
@@ -190,6 +191,7 @@ function parsePermitRows(text: string): ParsedPermit[] {
       raw_row: {
         permit_no: permitNo,
         permittee,
+        phone,
         check_in: checkInRaw,
         check_out: checkOutRaw,
         no_of_guests: guestCount,

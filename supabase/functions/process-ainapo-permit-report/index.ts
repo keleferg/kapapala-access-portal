@@ -137,17 +137,125 @@ Deno.serve(async (request: Request): Promise<Response> => {
   const webhookSecret = Deno.env.get("RESEND_WEBHOOK_SECRET");
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const retrySecret = Deno.env.get("AINAPO_RETRY_SECRET");
 
-  if (
-    !resendApiKey ||
-    !webhookSecret ||
-    !supabaseUrl ||
-    !serviceRoleKey
-  ) {
-    console.error("Required environment variables are missing.");
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error("Required Supabase environment variables are missing.");
 
     return jsonResponse(
       { error: "Function configuration is incomplete" },
+      500,
+    );
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+
+  /*
+   * Protected manual retry mode. This reprocesses a PDF that is already
+   * stored in Supabase and does not require the original email to be resent.
+   */
+  if (request.headers.get("x-ainapo-retry-secret")) {
+    const providedSecret =
+      request.headers.get("x-ainapo-retry-secret") ?? "";
+
+    if (!retrySecret || providedSecret !== retrySecret) {
+      return jsonResponse({ error: "Unauthorized retry request" }, 401);
+    }
+
+    let body: { report_id?: string };
+
+    try {
+      body = await request.json();
+    } catch {
+      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    }
+
+    const reportId = body.report_id?.trim();
+
+    if (!reportId) {
+      return jsonResponse({ error: "Missing report_id" }, 400);
+    }
+
+    const { data: report, error: reportError } = await supabase
+      .from("ainapo_permit_reports")
+      .select("id, storage_bucket, storage_path")
+      .eq("id", reportId)
+      .single();
+
+    if (reportError || !report) {
+      return jsonResponse(
+        {
+          error: "Permit report not found",
+          details: reportError?.message ?? null,
+        },
+        404,
+      );
+    }
+
+    const { data: storedPdf, error: downloadError } =
+      await supabase.storage
+        .from(report.storage_bucket)
+        .download(report.storage_path);
+
+    if (downloadError || !storedPdf) {
+      return jsonResponse(
+        {
+          error: "Unable to download stored permit report",
+          details: downloadError?.message ?? null,
+        },
+        500,
+      );
+    }
+
+    const pdfBytes = new Uint8Array(await storedPdf.arrayBuffer());
+
+    if (pdfBytes.byteLength > MAX_PDF_BYTES) {
+      return jsonResponse(
+        { error: "Stored PDF exceeds the 10 MB limit" },
+        413,
+      );
+    }
+
+    try {
+      const processingResult = await processAinapoPdf({
+        supabase,
+        reportId,
+        pdfBytes,
+      });
+
+      return jsonResponse({
+        success: true,
+        retry: true,
+        report_id: reportId,
+        ...processingResult,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error);
+
+      console.error("Manual Ainapo report retry failed:", message);
+
+      return jsonResponse(
+        {
+          error: "Unable to reprocess Ainapo permit report",
+          details: message,
+          report_id: reportId,
+        },
+        500,
+      );
+    }
+  }
+
+  if (!resendApiKey || !webhookSecret) {
+    console.error("Required Resend environment variables are missing.");
+
+    return jsonResponse(
+      { error: "Resend webhook configuration is incomplete" },
       500,
     );
   }
@@ -208,13 +316,6 @@ Deno.serve(async (request: Request): Promise<Response> => {
       reason: "Subject does not match Ainapo permit report",
     });
   }
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
 
   try {
     const attachmentResponse = await resendGet<{
