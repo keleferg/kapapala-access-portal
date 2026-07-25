@@ -16,11 +16,17 @@ export async function GET(request: Request) {
   const next = getSafeNextPath(requestUrl.searchParams.get("next"));
 
   if (!code) {
+    /*
+     * Supabase's legacy implicit recovery flow places the access and
+     * refresh tokens in the URL fragment after "#".
+     *
+     * URL fragments are never sent to the server, so this route cannot
+     * inspect those tokens. Redirect to the client-side password page,
+     * allowing the browser to preserve the fragment so SetPasswordForm
+     * can establish the recovery session.
+     */
     return NextResponse.redirect(
-      new URL(
-        "/login?error=missing-auth-code",
-        requestUrl.origin
-      )
+      new URL("/set-password", requestUrl.origin)
     );
   }
 
