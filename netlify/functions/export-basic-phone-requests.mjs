@@ -88,6 +88,11 @@ async function exportRequest({
   gate,
   hawaiiDate,
 }) {
+  /*
+   * Keep this stable for duplicate protection. Although the historical
+   * prefix says "basic-phone", the exporter now processes every account
+   * type until the temporary all-user SharePoint bridge is disabled.
+   */
   const exportEventId = `basic-phone-request:${request.id}`;
 
   const firstName =
@@ -224,7 +229,7 @@ async function runExporter() {
   const hawaiiDate = getHawaiiDate();
 
   console.log(
-    `Starting basic-phone SharePoint export for ${hawaiiDate} HST.`
+    `Starting all-user SharePoint request export for ${hawaiiDate} HST.`
   );
 
   /*
@@ -301,26 +306,29 @@ async function runExporter() {
       emergency_contact_phone,
       organization
     `)
-    .in("id", accountIds)
-    .eq("device_type", "basic_phone");
+    .in("id", accountIds);
 
   if (accountsError) {
     throw new Error(
-      `Unable to load basic-phone accounts: ${accountsError.message}`
+      `Unable to load access accounts: ${accountsError.message}`
     );
   }
 
-  const basicPhoneAccountMap = new Map(
+  const accountMap = new Map(
     (accounts || []).map((account) => [account.id, account])
   );
 
+  /*
+   * Temporarily export approved requests for every account type:
+   * app, mobile web, iPhone, and basic/flip phone.
+   */
   const eligibleRequests = requests.filter((request) =>
-    basicPhoneAccountMap.has(request.access_account_id)
+    accountMap.has(request.access_account_id)
   );
 
   if (!eligibleRequests.length) {
     console.log(
-      "Approved requests were found, but none belong to basic-phone accounts."
+      "Approved requests were found, but no matching access accounts were found."
     );
 
     return {
@@ -387,7 +395,7 @@ async function runExporter() {
    * keep each SharePoint creation easy to trace in the function logs.
    */
   for (const request of eligibleRequests) {
-    const account = basicPhoneAccountMap.get(
+    const account = accountMap.get(
       request.access_account_id
     );
 
@@ -437,7 +445,7 @@ async function runExporter() {
   const failed = results.length - exported;
 
   console.log(
-    `Basic-phone export complete: ${exported} exported, ` +
+    `All-user SharePoint export complete: ${exported} exported, ` +
       `${failed} failed.`
   );
 
@@ -465,9 +473,9 @@ export default async () => {
     const message =
       error instanceof Error
         ? error.message
-        : "Unknown scheduled exporter error.";
+        : "Unknown scheduled SharePoint exporter error.";
 
-    console.error("Basic-phone exporter failed:", message);
+    console.error("All-user SharePoint exporter failed:", message);
 
     return new Response(
       JSON.stringify({
