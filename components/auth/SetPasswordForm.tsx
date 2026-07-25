@@ -15,23 +15,111 @@ export default function SetPasswordForm() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+
     async function prepareSession() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get("code");
 
-      if (!session) {
-        setError(
-          "This password reset link is invalid or expired. Please request a new link."
+        /*
+         * PKCE recovery flow:
+         * Supabase returns a one-time authorization code.
+         */
+        if (code) {
+          const { error: exchangeError } =
+            await supabase.auth.exchangeCodeForSession(code);
+
+          if (exchangeError) {
+            throw exchangeError;
+          }
+
+          url.searchParams.delete("code");
+          window.history.replaceState(
+            {},
+            document.title,
+            `${url.pathname}${url.search}`
+          );
+        }
+
+        /*
+         * Legacy implicit recovery flow:
+         * Tokens are returned in the URL fragment after "#".
+         * Server routes cannot read these values, so handle them here.
+         */
+        const fragment = new URLSearchParams(
+          window.location.hash.replace(/^#/, "")
         );
-        setReady(false);
-        return;
-      }
 
-      setReady(true);
+        const fragmentError =
+          fragment.get("error_description") ||
+          fragment.get("error");
+
+        if (fragmentError) {
+          throw new Error(
+            decodeURIComponent(fragmentError.replace(/\+/g, " "))
+          );
+        }
+
+        const accessToken = fragment.get("access_token");
+        const refreshToken = fragment.get("refresh_token");
+
+        if (accessToken && refreshToken) {
+          const { error: sessionError } =
+            await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+
+          if (sessionError) {
+            throw sessionError;
+          }
+
+          window.history.replaceState(
+            {},
+            document.title,
+            `${window.location.pathname}${window.location.search}`
+          );
+        }
+
+        const {
+          data: { session },
+          error: sessionLookupError,
+        } = await supabase.auth.getSession();
+
+        if (sessionLookupError) {
+          throw sessionLookupError;
+        }
+
+        if (!session) {
+          throw new Error(
+            "This password reset link is invalid or expired. Please request a new link."
+          );
+        }
+
+        if (!cancelled) {
+          setReady(true);
+          setError("");
+        }
+      } catch (sessionError) {
+        console.error("Unable to prepare password reset session.");
+
+        if (!cancelled) {
+          setReady(false);
+          setError(
+            sessionError instanceof Error
+              ? sessionError.message
+              : "This password reset link is invalid or expired. Please request a new link."
+          );
+        }
+      }
     }
 
     void prepareSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, [supabase]);
 
   async function updatePassword() {
@@ -57,12 +145,17 @@ export default function SetPasswordForm() {
 
     if (updateError) {
       setError(updateError.message);
-    } else {
-      setMessage("Password saved. You can now sign in.");
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 1200);
+      setLoading(false);
+      return;
     }
+
+    await supabase.auth.signOut();
+
+    setMessage("Password saved. You can now sign in.");
+
+    window.setTimeout(() => {
+      window.location.href = "/login";
+    }, 1200);
 
     setLoading(false);
   }
@@ -70,8 +163,19 @@ export default function SetPasswordForm() {
   return (
     <Card title="Create Password">
       <div className="mobile-form-stack">
-        {message && <div className="success-callout">{message}</div>}
-        {error && <div className="error-callout">{error}</div>}
+        {message && (
+          <div className="success-callout">{message}</div>
+        )}
+
+        {error && (
+          <div className="error-callout">{error}</div>
+        )}
+
+        {!ready && !error && (
+          <div className="info-callout">
+            Verifying your password reset link...
+          </div>
+        )}
 
         <label>
           New Password
@@ -80,6 +184,7 @@ export default function SetPasswordForm() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             disabled={!ready || loading}
+            autoComplete="new-password"
           />
         </label>
 
@@ -90,6 +195,7 @@ export default function SetPasswordForm() {
             value={confirm}
             onChange={(event) => setConfirm(event.target.value)}
             disabled={!ready || loading}
+            autoComplete="new-password"
           />
         </label>
 
