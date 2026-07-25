@@ -6876,3 +6876,12 @@ tbody tr:hover,
   background: rgba(255, 255, 255, 0.18) !important;
 }
 /* END UNIVERSAL GREEN SIDEBAR */
+
+/* SharePoint-origin Daily Access Requests */
+.daily-request-row.sharepoint-request-row {
+  background: #fff8d6;
+}
+
+.daily-request-row.sharepoint-request-row:hover {
+  background: #fff2b8;
+}

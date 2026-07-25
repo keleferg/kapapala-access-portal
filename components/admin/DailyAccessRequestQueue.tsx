@@ -19,6 +19,8 @@ type DailyAccessRequest = {
   status: RequestStatus;
   pending_reason: string | null;
   created_at: string;
+  source_system: string | null;
+  sharepoint_item_id: number | null;
   ainapo_permit_verified: boolean;
   ainapo_permit_match_method: string | null;
   ainapo_permit_match_confidence: number | null;
@@ -237,6 +239,8 @@ export default function DailyAccessRequestQueue() {
         status,
         pending_reason,
         created_at,
+        source_system,
+        sharepoint_item_id,
         ainapo_permit_verified,
         ainapo_permit_match_method,
         ainapo_permit_match_confidence,
@@ -593,14 +597,23 @@ export default function DailyAccessRequestQueue() {
                 const isPending = request.status === "pending";
                 const isAinapoPermitVerified =
                   request.ainapo_permit_verified === true;
+                const isSharePointRequest =
+                  request.source_system?.toLowerCase() === "sharepoint" ||
+                  request.sharepoint_item_id != null;
 
                 return (
                   <div
-                    className={`daily-request-row ${
+                    className={[
+                      "daily-request-row",
+                      isSharePointRequest
+                        ? "sharepoint-request-row"
+                        : "",
                       isAinapoPermitVerified
                         ? "ainapo-permit-verified-row"
-                        : ""
-                    }`}
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
                     key={request.id}
                   >
                     <strong>{getRequesterName(request)}</strong>
