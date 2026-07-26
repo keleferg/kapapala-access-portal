@@ -7,7 +7,7 @@ import { useEffect } from "react";
 const nav = [
   { href: "/mobile", label: "Home", icon: "⌂" },
   { href: "/mobile/requests", label: "Requests", icon: "▣" },
-  { href: "/mobile/gate-code", label: "Gate Code", icon: "⌁" },
+  { href: "/mobile/gate-code", label: "Gate Code", icon: "🔒" },
   { href: "/mobile/account", label: "Account", icon: "◎" },
 ];
 

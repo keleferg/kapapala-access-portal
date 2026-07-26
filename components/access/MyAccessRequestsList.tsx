@@ -255,9 +255,9 @@ function RequestCard({
             </Link>
           )}
 
-          {request.status === "approved" && (
+          {request.status === "approved" && !isPastRequest(request) && (
             <button
-              className="button danger"
+              className="button danger compact-cancel-request"
               type="button"
               onClick={() => onCancel(request.id)}
               disabled={isCancelling}

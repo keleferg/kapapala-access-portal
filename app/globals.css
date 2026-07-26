@@ -6947,3 +6947,25 @@ body.mobile-public-active { background:#f4f6f2; overscroll-behavior-y:contain; }
 .mobile-public-content table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}.mobile-public-content .page-heading{display:none}
 .mobile-security-note{background:#fff6d8;border:1px solid #ead899;padding:12px;border-radius:14px;line-height:1.4}.mobile-reveal-button{width:100%;border:0;border-radius:18px;background:#174d35;color:#fff;font-weight:850;padding:16px}.mobile-gate-code{margin:18px 0;text-align:center;font-size:3rem;font-weight:900;letter-spacing:.18em;color:#174d35;background:#e8f1eb;border-radius:20px;padding:24px 12px}.mobile-info-list{display:grid;gap:10px}.mobile-info-list a{display:flex;justify-content:space-between;align-items:center;padding:18px;background:white;border-radius:18px;text-decoration:none;color:#173d2d;font-weight:750;box-shadow:0 7px 20px rgba(29,60,46,.08)}
 @media (min-width:768px){.mobile-public-shell{box-shadow:0 0 40px rgba(0,0,0,.08)}}
+
+/* Mobile request wizard: force one-column page layout */
+.mobile-public-content .request-layout {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.mobile-public-content .request-layout > * {
+  min-width: 0;
+  width: 100%;
+}
+
+/* Compact Cancel Request button */
+.compact-cancel-request {
+  min-height: 0 !important;
+  width: auto;
+  padding: 3px 8px !important;
+  border-radius: 7px;
+  font-size: 0.68rem !important;
+  line-height: 1.1;
+  font-weight: 700;
+  white-space: nowrap;
+}
