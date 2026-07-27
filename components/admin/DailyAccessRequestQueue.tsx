@@ -598,8 +598,7 @@ export default function DailyAccessRequestQueue() {
                 const isAinapoPermitVerified =
                   request.ainapo_permit_verified === true;
                 const isSharePointRequest =
-                  request.source_system?.toLowerCase() === "sharepoint" ||
-                  request.sharepoint_item_id != null;
+                  request.source_system?.toLowerCase() === "sharepoint";
 
                 return (
                   <div
