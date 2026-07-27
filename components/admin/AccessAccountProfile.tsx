@@ -169,6 +169,10 @@ export default function AccessAccountProfile({
   const [idReviewError, setIdReviewError] = useState("");
   const [idReviewExpanded, setIdReviewExpanded] = useState(false);
 
+  const [idExpirationDate, setIdExpirationDate] = useState("");
+  const [savingIdExpiration, setSavingIdExpiration] = useState(false);
+  const [idExpirationMessage, setIdExpirationMessage] = useState("");
+
   const [editingProfile, setEditingProfile] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [activatingAccount, setActivatingAccount] = useState(false);
@@ -215,6 +219,8 @@ export default function AccessAccountProfile({
 
         if (isMounted) {
           setIdReview(review);
+          setIdExpirationDate(review?.parsed_expiration_date || "");
+          setIdExpirationMessage("");
         }
       } catch (error) {
         if (isMounted) {
@@ -393,6 +399,77 @@ export default function AccessAccountProfile({
       );
     } finally {
       setSuspendingAccount(false);
+    }
+  }
+
+  async function saveIdExpirationDate() {
+    if (!canEditAccountProfile) {
+      setIdExpirationMessage(
+        "You do not have permission to update this ID expiration date."
+      );
+      return;
+    }
+
+    if (!account?.id_document_path) {
+      setIdExpirationMessage(
+        "An uploaded government ID is required before an expiration date can be saved."
+      );
+      return;
+    }
+
+    if (!idExpirationDate) {
+      setIdExpirationMessage("Select an expiration date.");
+      return;
+    }
+
+    setSavingIdExpiration(true);
+    setIdExpirationMessage("");
+
+    try {
+      const supabase = getSupabaseClient() as any;
+
+      const { error: updateError } = await supabase.rpc(
+        "admin_update_id_expiration",
+        {
+          p_access_account_id: accountId,
+          p_expiration_date: idExpirationDate,
+        }
+      );
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      const { data, error: reloadError } = await supabase.rpc(
+        "get_admin_access_account_id_review",
+        {
+          p_access_account_id: accountId,
+        }
+      );
+
+      if (reloadError) {
+        throw reloadError;
+      }
+
+      const refreshedReview = Array.isArray(data)
+        ? data[0] || null
+        : data || null;
+
+      setIdReview(refreshedReview);
+      setIdExpirationDate(
+        refreshedReview?.parsed_expiration_date || idExpirationDate
+      );
+      setIdExpirationMessage("ID expiration date updated successfully.");
+
+      await refreshTimeline();
+    } catch (error) {
+      setIdExpirationMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to update the ID expiration date."
+      );
+    } finally {
+      setSavingIdExpiration(false);
     }
   }
 
@@ -780,6 +857,14 @@ export default function AccessAccountProfile({
                 <div>
                   <span>Email</span>
                   <strong>{email || "—"}</strong>
+                  {email && (
+                    <a
+                      className="button secondary"
+                      href={`mailto:${email}`}
+                    >
+                      Send Email
+                    </a>
+                  )}
                 </div>
 
                 <div>
@@ -1165,6 +1250,142 @@ export default function AccessAccountProfile({
                       ID has not been automatically reviewed yet.
                     </p>
                   )}
+
+                {!idReviewLoading && !idReviewError && idReview && (
+                  <div
+                    style={{
+                      margin: "18px 0",
+                      padding: 16,
+                      borderRadius: 14,
+                      border: "1px solid #cbd5e1",
+                      background: "#f8fafc",
+                    }}
+                  >
+                    <div style={{ marginBottom: 12 }}>
+                      <strong style={{ display: "block", color: "#0f172a" }}>
+                        ID Expiration Date
+                      </strong>
+
+                      <p
+                        style={{
+                          margin: "5px 0 0",
+                          color: "#64748b",
+                          fontSize: 13,
+                        }}
+                      >
+                        Update the recorded expiration date without replacing
+                        the uploaded government ID.
+                      </p>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 10,
+                        alignItems: "end",
+                      }}
+                    >
+                      <label
+                        style={{
+                          display: "grid",
+                          gap: 6,
+                          minWidth: 220,
+                          fontWeight: 700,
+                          color: "#334155",
+                        }}
+                      >
+                        Expiration
+                        <input
+                          type="date"
+                          value={idExpirationDate}
+                          onChange={(event) => {
+                            setIdExpirationDate(event.target.value);
+                            setIdExpirationMessage("");
+                          }}
+                          disabled={
+                            savingIdExpiration || !canEditAccountProfile
+                          }
+                          style={{
+                            minHeight: 42,
+                            borderRadius: 9,
+                            border: "1px solid #94a3b8",
+                            padding: "8px 10px",
+                            background: "white",
+                            color: "#0f172a",
+                          }}
+                        />
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={saveIdExpirationDate}
+                        disabled={
+                          savingIdExpiration ||
+                          !canEditAccountProfile ||
+                          !account?.id_document_path ||
+                          !idExpirationDate
+                        }
+                        style={{
+                          minHeight: 42,
+                          border: 0,
+                          borderRadius: 9,
+                          padding: "9px 16px",
+                          background:
+                            savingIdExpiration ||
+                            !canEditAccountProfile ||
+                            !account?.id_document_path ||
+                            !idExpirationDate
+                              ? "#94a3b8"
+                              : "#166534",
+                          color: "white",
+                          fontWeight: 800,
+                          cursor:
+                            savingIdExpiration ||
+                            !canEditAccountProfile ||
+                            !account?.id_document_path ||
+                            !idExpirationDate
+                              ? "not-allowed"
+                              : "pointer",
+                        }}
+                      >
+                        {savingIdExpiration
+                          ? "Saving..."
+                          : idReview.parsed_expiration_date
+                            ? "Update Expiration"
+                            : "Save Expiration"}
+                      </button>
+                    </div>
+
+                    {!account?.id_document_path && (
+                      <p
+                        style={{
+                          margin: "10px 0 0",
+                          color: "#b45309",
+                          fontSize: 13,
+                          fontWeight: 700,
+                        }}
+                      >
+                        No uploaded government ID is linked to this account.
+                      </p>
+                    )}
+
+                    {idExpirationMessage && (
+                      <p
+                        style={{
+                          margin: "10px 0 0",
+                          color: idExpirationMessage.includes("successfully")
+                            ? "#166534"
+                            : "#b91c1c",
+                          fontSize: 13,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {idExpirationMessage}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {!idReviewLoading &&
                   !idReviewError &&
