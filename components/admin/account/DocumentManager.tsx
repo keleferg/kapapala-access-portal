@@ -177,7 +177,7 @@ export default function DocumentManager({
         throw new Error("Unable to verify the current admin session.");
       }
 
-      const response = await fetch("/api/admin/id-documents/process", {
+      const response = await fetch("/api/admin/documents/process", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
