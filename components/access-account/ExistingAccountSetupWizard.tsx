@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Card from "../ui/Card";
 import { getSupabaseClient } from "../../lib/supabaseClient";
@@ -91,6 +91,8 @@ export default function ExistingAccountSetupWizard({
   const [replacementIdUploaded, setReplacementIdUploaded] =
     useState(false);
 
+  const draftStorageKey = `existing-account-setup-draft:${account.id}`;
+
   const [form, setForm] = useState<FormState>({
     firstName: account.applicant_first_name ?? "",
     lastName: account.applicant_last_name ?? "",
@@ -114,6 +116,50 @@ export default function ExistingAccountSetupWizard({
     closingTimeAccepted: false,
     misuseAccepted: false,
   });
+
+  useEffect(() => {
+    try {
+      const savedDraft = window.localStorage.getItem(draftStorageKey);
+
+      if (!savedDraft) {
+        return;
+      }
+
+      const parsedDraft = JSON.parse(savedDraft) as {
+        step?: number;
+        form?: Partial<FormState>;
+      };
+
+      if (parsedDraft.form) {
+        setForm((current) => ({
+          ...current,
+          ...parsedDraft.form,
+        }));
+      }
+
+      if (typeof parsedDraft.step === "number") {
+        setStep(
+          Math.max(0, Math.min(parsedDraft.step, steps.length - 1))
+        );
+      }
+    } catch (error) {
+      console.error("Unable to restore account setup draft:", error);
+    }
+  }, [draftStorageKey]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        draftStorageKey,
+        JSON.stringify({
+          step,
+          form,
+        })
+      );
+    } catch (error) {
+      console.error("Unable to save account setup draft:", error);
+    }
+  }, [draftStorageKey, step, form]);
 
   function updateField<K extends keyof FormState>(
     field: K,
@@ -381,6 +427,7 @@ export default function ExistingAccountSetupWizard({
           throw new Error(error.message);
         }
 
+        window.localStorage.removeItem(draftStorageKey);
         router.replace("/dashboard");
         router.refresh();
       }

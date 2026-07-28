@@ -97,6 +97,21 @@ function hawaiiDate(value?: string): string {
   }).format(date);
 }
 
+function hawaiiTomorrowDate(value?: string): string {
+  const receivedDateHst = hawaiiDate(value);
+  const [year, month, day] = receivedDateHst
+    .split("-")
+    .map((part) => Number(part));
+
+  const tomorrow = new Date(Date.UTC(year, month - 1, day + 1));
+
+  return [
+    tomorrow.getUTCFullYear(),
+    String(tomorrow.getUTCMonth() + 1).padStart(2, "0"),
+    String(tomorrow.getUTCDate()).padStart(2, "0"),
+  ].join("-");
+}
+
 async function resendGet<T>(
   path: string,
   resendApiKey: string,
@@ -351,7 +366,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       );
     }
 
-    const reportDate = hawaiiDate(event.created_at);
+    const reportDate = hawaiiTomorrowDate(event.created_at);
     const storedReports: Array<Record<string, unknown>> = [];
 
     for (const attachment of pdfAttachments) {

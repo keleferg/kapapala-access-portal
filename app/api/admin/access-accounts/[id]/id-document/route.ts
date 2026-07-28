@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 
 const SIGNED_URL_SECONDS = 60 * 5;
+const ID_BUCKET = "access-account-ids";
 const LEGACY_BUCKET = "kapapala-documents";
 
 function getSupabaseAdminClient() {
@@ -257,16 +258,29 @@ export async function GET(
         : "";
 
     if (legacyPath) {
-      const { data: signedData, error: signedError } =
-        await supabaseAdmin.storage
-          .from(LEGACY_BUCKET)
+      let signedUrl: string | null = null;
+      let resolvedBucket: string | null = null;
+      let lastSignedError: string | null = null;
+
+      for (const bucketName of [ID_BUCKET, LEGACY_BUCKET]) {
+        const { data, error } = await supabaseAdmin.storage
+          .from(bucketName)
           .createSignedUrl(legacyPath, SIGNED_URL_SECONDS);
 
-      if (signedError) {
+        if (!error && data?.signedUrl) {
+          signedUrl = data.signedUrl;
+          resolvedBucket = bucketName;
+          break;
+        }
+
+        lastSignedError = error?.message ?? "Signed URL was not returned.";
+      }
+
+      if (!signedUrl || !resolvedBucket) {
         return NextResponse.json(
           {
             success: false,
-            error: signedError.message,
+            error: lastSignedError ?? "ID document could not be found.",
           },
           { status: 500 }
         );
@@ -275,7 +289,7 @@ export async function GET(
       return NextResponse.json({
         success: true,
         hasDocument: true,
-        signedUrl: signedData?.signedUrl ?? null,
+        signedUrl,
         expiresInSeconds: SIGNED_URL_SECONDS,
         source: "legacy_id_document_path",
         document: {
@@ -286,7 +300,7 @@ export async function GET(
           fileSize: null,
           uploadedAt: null,
           expiresAt: null,
-          storageBucket: LEGACY_BUCKET,
+          storageBucket: resolvedBucket,
           storagePath: legacyPath,
         },
         account,
