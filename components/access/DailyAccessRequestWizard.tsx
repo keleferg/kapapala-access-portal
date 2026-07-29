@@ -182,7 +182,7 @@ export default function DailyAccessRequestWizard() {
   const [dlnrPermitNumber, setDlnrPermitNumber] = useState("");
   const [npsReservationNumber, setNpsReservationNumber] = useState("");
   const [exitingViaSaddleRoad, setExitingViaSaddleRoad] = useState(false);
-  const [persons, setPersons] = useState(1);
+  const [persons, setPersons] = useState("1");
   const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>([]);
   const [additionalVehicles, setAdditionalVehicles] = useState("");
 
@@ -421,8 +421,13 @@ export default function DailyAccessRequestWizard() {
       }
     }
 
-    if (persons < 1) {
-      return "Number of persons must be at least 1.";
+    const parsedPersons = Number(persons);
+
+    if (
+      !Number.isInteger(parsedPersons) ||
+      parsedPersons < 1
+    ) {
+      return "Number of persons must be a whole number of at least 1.";
     }
 
     const vehicleSummary = buildVehicleSummary(
@@ -476,7 +481,7 @@ export default function DailyAccessRequestWizard() {
             p_request_date: requestDate,
             p_gate_id: gateId,
             p_purpose: finalPurpose,
-            p_party_size: persons,
+            p_party_size: Number(persons),
             p_vehicle_summary: vehicleSummary,
             p_user_comments: "",
             p_dlnr_permit_number: null,
@@ -510,7 +515,7 @@ export default function DailyAccessRequestWizard() {
             request_date: requestDate,
             gate_id: gateId,
             purpose: finalPurpose,
-            party_size: persons,
+            party_size: Number(persons),
             vehicle_summary: vehicleSummary,
             emergency_contact_phone:
               account.emergency_contact_phone,
@@ -816,9 +821,21 @@ export default function DailyAccessRequestWizard() {
                     type="number"
                     min={1}
                     value={persons}
+                    inputMode="numeric"
+                    step={1}
                     onChange={(event) =>
-                      setPersons(Math.max(1, Number(event.target.value)))
+                      setPersons(event.target.value)
                     }
+                    onBlur={() => {
+                      const parsedPersons = Number(persons);
+
+                      if (
+                        !Number.isInteger(parsedPersons) ||
+                        parsedPersons < 1
+                      ) {
+                        setPersons("1");
+                      }
+                    }}
                   />
                 </label>
 
@@ -904,7 +921,7 @@ export default function DailyAccessRequestWizard() {
 
                 <div className="summary-item">
                   <span>Persons</span>
-                  <strong>{persons}</strong>
+                  <strong>{persons || "1"}</strong>
                 </div>
 
                 <div className="summary-item">
