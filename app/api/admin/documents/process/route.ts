@@ -538,6 +538,32 @@ export async function POST(request: Request) {
       throw updateError;
     }
 
+    if (parsedExpirationDate) {
+      const { error: documentExpirationError } = await adminSupabase
+        .from("access_account_documents")
+        .update({
+          expires_at: parsedExpirationDate,
+        })
+        .eq("access_account_id", accessAccountId)
+        .eq("storage_path", documentPath);
+
+      if (documentExpirationError) {
+        throw documentExpirationError;
+      }
+
+      const { error: accountExpirationError } = await adminSupabase
+        .from("access_accounts")
+        .update({
+          id_expires_at: parsedExpirationDate,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", accessAccountId);
+
+      if (accountExpirationError) {
+        throw accountExpirationError;
+      }
+    }
+
     return NextResponse.json({
       success: true,
       reviewId: review.id,

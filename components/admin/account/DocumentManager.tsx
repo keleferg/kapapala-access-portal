@@ -103,6 +103,7 @@ export default function DocumentManager({
   const [expiresAt, setExpiresAt] = useState("");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [savingExpiration, setSavingExpiration] = useState(false);
   const [processingReview, setProcessingReview] = useState(false);
   const [reviewMessage, setReviewMessage] = useState("");
   const [reviewMessageTone, setReviewMessageTone] = useState<
@@ -198,23 +199,43 @@ export default function DocumentManager({
         );
       }
 
+      const parsedExpirationDate =
+        typeof result?.parsed?.expirationDate === "string"
+          ? result.parsed.expirationDate
+          : "";
+
+      if (parsedExpirationDate) {
+        setExpiresAt(parsedExpirationDate);
+      }
+
+      await loadDocuments();
+
       if (result.flags && result.flags.length > 0) {
         setReviewMessageTone("warning");
+
+        const expirationMessage = parsedExpirationDate
+          ? ` Expiration date detected: ${parsedExpirationDate}. Please verify it before approving the account.`
+          : "";
+
         setReviewMessage(
           `Automatic ID review completed with warning flag(s): ${result.flags.join(
             ", "
-          )}.`
+          )}.${expirationMessage}`
         );
       } else {
         setReviewMessageTone("success");
-        setReviewMessage("Automatic ID review completed. No warnings found.");
+        setReviewMessage(
+          parsedExpirationDate
+            ? `Automatic ID review completed. Expiration date detected: ${parsedExpirationDate}. Please verify it before approving the account.`
+            : "Automatic ID review completed. No warnings found."
+        );
       }
 
       await refreshTimeline();
 
       window.setTimeout(() => {
         window.location.reload();
-      }, 900);
+      }, 1200);
     } catch (error) {
       setReviewMessageTone("error");
       setReviewMessage(
@@ -224,6 +245,54 @@ export default function DocumentManager({
       );
     } finally {
       setProcessingReview(false);
+    }
+  }
+
+  async function saveExpirationDate() {
+    if (!latestDocument) {
+      setReviewMessageTone("warning");
+      setReviewMessage(
+        "Upload an ID document before saving an expiration date."
+      );
+      return;
+    }
+
+    if (!expiresAt) {
+      setReviewMessageTone("warning");
+      setReviewMessage("Select an expiration date.");
+      return;
+    }
+
+    setSavingExpiration(true);
+    setReviewMessage("");
+    setReviewMessageTone("neutral");
+
+    try {
+      const supabase = getSupabaseClient() as any;
+
+      const { error } = await supabase.rpc("admin_update_id_expiration", {
+        p_access_account_id: accountId,
+        p_expiration_date: expiresAt,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      await loadDocuments();
+      await refreshTimeline();
+
+      setReviewMessageTone("success");
+      setReviewMessage("ID expiration date updated successfully.");
+    } catch (error) {
+      setReviewMessageTone("error");
+      setReviewMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to update the ID expiration date."
+      );
+    } finally {
+      setSavingExpiration(false);
     }
   }
 
@@ -377,22 +446,48 @@ export default function DocumentManager({
           <input
             type="date"
             value={expiresAt}
-            onChange={(event) => setExpiresAt(event.target.value)}
+            onChange={(event) => {
+              setExpiresAt(event.target.value);
+              setReviewMessage("");
+            }}
+            disabled={
+              loading ||
+              uploading ||
+              processingReview ||
+              savingExpiration ||
+              !latestDocument
+            }
           />
         </label>
+
+        <button
+          className="button secondary"
+          type="button"
+          onClick={saveExpirationDate}
+          disabled={
+            loading ||
+            uploading ||
+            processingReview ||
+            savingExpiration ||
+            !latestDocument ||
+            !expiresAt
+          }
+        >
+          {savingExpiration ? "Saving..." : "Save Expiration Date"}
+        </button>
 
         <input
           type="file"
           accept="image/jpeg,image/png,application/pdf"
           onChange={(event) => setFile(event.target.files?.[0] || null)}
-          disabled={uploading || processingReview}
+          disabled={uploading || processingReview || savingExpiration}
         />
 
         <button
           className="button primary"
           type="button"
           onClick={uploadDocument}
-          disabled={uploading || processingReview}
+          disabled={uploading || processingReview || savingExpiration}
         >
           {uploadButtonLabel}
         </button>
