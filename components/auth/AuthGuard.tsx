@@ -73,7 +73,7 @@ export default function AuthGuard({ mode, children }: { mode: GuardMode; childre
     return (
       <Card title="Sign In Required">
         <p className="muted-text">Please sign in to continue.</p>
-        <Link className="button primary" href="/login">Go to Login</Link>
+        <Link className="button primary" href="/">Go to Sign In</Link>
       </Card>
     );
   }

@@ -129,7 +129,7 @@ function CompleteAccountSetupContent() {
         }
 
         if (!user) {
-          router.replace("/login");
+          router.replace("/");
           return;
         }
 

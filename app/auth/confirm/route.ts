@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
   if (!tokenHash || !type) {
     return NextResponse.redirect(
-      new URL("/login?error=invalid-reset-link", requestUrl.origin)
+      new URL("/?error=invalid-reset-link", requestUrl.origin)
     );
   }
 
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     );
 
     return NextResponse.redirect(
-      new URL("/login?error=auth-configuration", requestUrl.origin)
+      new URL("/?error=auth-configuration", requestUrl.origin)
     );
   }
 
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
 
     return NextResponse.redirect(
       new URL(
-        "/login?error=expired-or-invalid-link",
+        "/?error=expired-or-invalid-link",
         requestUrl.origin
       )
     );

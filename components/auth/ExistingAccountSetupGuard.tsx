@@ -7,6 +7,7 @@ import { getSupabaseClient } from "../../lib/supabaseClient";
 const CURRENT_SETUP_VERSION = 2;
 
 const EXCLUDED_PATHS = [
+  "/",
   "/login",
   "/logout",
   "/complete-account-setup",

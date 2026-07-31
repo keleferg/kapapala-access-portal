@@ -83,7 +83,7 @@ export default function AuthStatusPanel() {
             <div><span>Role</span><strong>{status.role}</strong></div>
           </div>
         ) : (
-          <p className="muted-text">Sign in from /login to test the full authentication loop.</p>
+          <p className="muted-text">Sign in from the homepage to test the full authentication loop.</p>
         )}
       </Card>
     </div>

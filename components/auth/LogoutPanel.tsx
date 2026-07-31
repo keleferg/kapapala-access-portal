@@ -23,7 +23,7 @@ export default function LogoutPanel() {
     <div className="auth-page">
       <Card title="Signed Out">
         <p className="muted-text">{message}</p>
-        <Link className="button primary" href="/login">Return to Login</Link>
+        <Link className="button primary" href="/">Return to Sign In</Link>
       </Card>
     </div>
   );

@@ -170,7 +170,7 @@ export default function SetPasswordForm() {
     setMessage("Password saved. You can now sign in.");
 
     window.setTimeout(() => {
-      window.location.href = "/login";
+      window.location.href = "/";
     }, 1200);
 
     setLoading(false);

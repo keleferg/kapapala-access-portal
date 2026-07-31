@@ -15,7 +15,7 @@ const MOBILE_ROUTE_MAP: Record<string, string> = {
 };
 
 const PUBLIC_ROUTES = new Set([
-  "/login",
+  "/",
   "/logout",
   "/request-account",
   "/set-password",
@@ -54,6 +54,17 @@ function copyCookies(
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
+  /*
+   * Preserve old bookmarks and emailed links, but use the homepage as
+   * the single sign-in and account-registration entry page.
+   */
+  if (pathname === "/login") {
+    const homeUrl = request.nextUrl.clone();
+    homeUrl.pathname = "/";
+
+    return NextResponse.redirect(homeUrl);
+  }
+
   if (isPublicRoute(pathname)) {
     return NextResponse.next();
   }
@@ -67,7 +78,7 @@ export async function proxy(request: NextRequest) {
     );
 
     const errorUrl = request.nextUrl.clone();
-    errorUrl.pathname = "/login";
+    errorUrl.pathname = "/";
     errorUrl.search = "";
     errorUrl.searchParams.set("error", "authentication-unavailable");
 
@@ -114,12 +125,12 @@ export async function proxy(request: NextRequest) {
   if (error || !user) {
     const loginUrl = request.nextUrl.clone();
 
-    loginUrl.pathname = "/login";
+    loginUrl.pathname = "/";
     loginUrl.search = "";
 
     const requestedDestination = `${pathname}${search}`;
 
-    if (pathname !== "/" && requestedDestination !== "/login") {
+    if (pathname !== "/") {
       loginUrl.searchParams.set("next", requestedDestination);
     }
 

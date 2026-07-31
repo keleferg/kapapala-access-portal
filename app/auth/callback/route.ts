@@ -41,7 +41,7 @@ export async function GET(request: Request) {
 
     return NextResponse.redirect(
       new URL(
-        "/login?error=auth-configuration",
+        "/?error=auth-configuration",
         requestUrl.origin
       )
     );
@@ -94,7 +94,7 @@ export async function GET(request: Request) {
 
     return NextResponse.redirect(
       new URL(
-        "/login?error=expired-or-invalid-link",
+        "/?error=expired-or-invalid-link",
         requestUrl.origin
       )
     );
