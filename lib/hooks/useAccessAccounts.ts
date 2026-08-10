@@ -20,8 +20,20 @@ export type AccessAccount = {
   updated_at: string;
   issued_at: string | null;
   expires_at: string | null;
+  setup_completed_at?: string | null;
+  setup_version?: number | null;
+  setup_intro_email_sent_at?: string | null;
+  setup_intro_email_last_error?: string | null;
   applicant_first_name?: string | null;
   applicant_last_name?: string | null;
+
+  mailing_address?: string | null;
+  mailing_address_original?: string | null;
+  mailing_address_standardized?: string | null;
+  mailing_address_line1?: string | null;
+  mailing_address_line2?: string | null;
+  mailing_address_city?: string | null;
+
   applicant: {
     first_name: string;
     last_name: string;

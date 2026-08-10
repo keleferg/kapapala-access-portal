@@ -36,6 +36,10 @@ type AccessAccount = {
   organization?: string | null;
   device_type?: DeviceType | null;
   expires_at?: string | null;
+  setup_completed_at?: string | null;
+  setup_version?: number | null;
+  setup_intro_email_sent_at?: string | null;
+  setup_intro_email_last_error?: string | null;
   emergency_contact_name?: string | null;
   emergency_contact_phone?: string | null;
   applicant_first_name?: string | null;
@@ -246,6 +250,44 @@ export default function AccessAccountManagement({
       return matchesSearch && matchesStatus;
     });
   }, [accounts, search, statusFilter]);
+
+  const newSystemSetupCounts = useMemo(() => {
+    const counts = {
+      setupComplete: 0,
+      emailSentNotSetUp: 0,
+      notEmailedNotSetUp: 0,
+      emailErrorNotSetUp: 0,
+      notEligibleInactive: 0,
+    };
+
+    for (const account of accounts) {
+      if (
+        account.setup_completed_at &&
+        (account.setup_version ?? 0) >= 2
+      ) {
+        counts.setupComplete += 1;
+      } else if (
+        account.setup_intro_email_sent_at &&
+        !account.setup_completed_at
+      ) {
+        counts.emailSentNotSetUp += 1;
+      } else if (
+        account.setup_intro_email_last_error &&
+        !account.setup_completed_at
+      ) {
+        counts.emailErrorNotSetUp += 1;
+      } else if (
+        account.status === "active" &&
+        !account.setup_completed_at
+      ) {
+        counts.notEmailedNotSetUp += 1;
+      } else {
+        counts.notEligibleInactive += 1;
+      }
+    }
+
+    return counts;
+  }, [accounts]);
 
   const selected =
     accounts.find((account) => account.id === accountId) ||
@@ -645,6 +687,37 @@ export default function AccessAccountManagement({
               <strong>{accounts.length}</strong>
             </div>
           </div>
+
+          <details className="new-system-setup-details">
+            <summary>
+              <span>New System Setup Status - Accounts that transferred from legacy system.</span>
+              <span className="new-system-setup-summary-hint">
+                View details
+              </span>
+            </summary>
+
+            <div className="new-system-setup-grid">
+              <div>
+                <span>Setup Complete</span>
+                <strong>{newSystemSetupCounts.setupComplete}</strong>
+              </div>
+
+              <div>
+                <span>Email Sent – Not Set Up</span>
+                <strong>{newSystemSetupCounts.emailSentNotSetUp}</strong>
+              </div>
+
+              <div>
+                <span>Not Eligible / Inactive</span>
+                <strong>{newSystemSetupCounts.notEligibleInactive}</strong>
+              </div>
+
+              <div>
+                <span>Total Accounts</span>
+                <strong>{accounts.length}</strong>
+              </div>
+            </div>
+          </details>
         </Card>
       </section>
 
@@ -941,7 +1014,20 @@ export default function AccessAccountManagement({
             </Card>
           ) : (
             <>
-              <Card title="360° Account Overview">
+              <Card
+                title="360° Account Overview"
+                className="account-overview-registration-card"
+              >
+                {selected.setup_completed_at && (
+                  <div
+                    className="account-registration-complete"
+                    title="New system registration completed"
+                    aria-label="New system registration completed"
+                  >
+                    ✓
+                  </div>
+                )}
+
                 <div className="profile-header-row">
                   <div>
                     <h2>{getAccountName(selected)}</h2>

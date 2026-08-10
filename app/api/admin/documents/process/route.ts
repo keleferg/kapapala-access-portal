@@ -539,28 +539,54 @@ export async function POST(request: Request) {
     }
 
     if (parsedExpirationDate) {
-      const { error: documentExpirationError } = await adminSupabase
-        .from("access_account_documents")
-        .update({
-          expires_at: parsedExpirationDate,
-        })
-        .eq("access_account_id", accessAccountId)
-        .eq("storage_path", documentPath);
+      /*
+       * Expiration precedence:
+       *
+       * 1. An existing access_accounts.id_expires_at value is authoritative.
+       *    This may have been migrated, supplied during upload, or manually
+       *    corrected by an administrator.
+       *
+       * 2. Textract may populate the expiration only when the account does
+       *    not already have one.
+       *
+       * This prevents automated document reprocessing from overwriting an
+       * administrator-corrected expiration date.
+       */
+      const { data: currentAccount, error: currentAccountError } =
+        await adminSupabase
+          .from("access_accounts")
+          .select("id_expires_at")
+          .eq("id", accessAccountId)
+          .single();
 
-      if (documentExpirationError) {
-        throw documentExpirationError;
+      if (currentAccountError) {
+        throw currentAccountError;
       }
 
-      const { error: accountExpirationError } = await adminSupabase
-        .from("access_accounts")
-        .update({
-          id_expires_at: parsedExpirationDate,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", accessAccountId);
+      if (!currentAccount?.id_expires_at) {
+        const { error: documentExpirationError } = await adminSupabase
+          .from("access_account_documents")
+          .update({
+            expires_at: parsedExpirationDate,
+          })
+          .eq("access_account_id", accessAccountId)
+          .eq("storage_path", documentPath);
 
-      if (accountExpirationError) {
-        throw accountExpirationError;
+        if (documentExpirationError) {
+          throw documentExpirationError;
+        }
+
+        const { error: accountExpirationError } = await adminSupabase
+          .from("access_accounts")
+          .update({
+            id_expires_at: parsedExpirationDate,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", accessAccountId);
+
+        if (accountExpirationError) {
+          throw accountExpirationError;
+        }
       }
     }
 

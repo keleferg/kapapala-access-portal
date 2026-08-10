@@ -17,3 +17,7 @@ bulk-id-import-dry-run-report.csv
 *.heic
 *.mov
 *.mp4
+.env.local.backup-*
+.kapapala-backups/
+*.backup-*
+*.ainapo-backup

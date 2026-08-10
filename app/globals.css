@@ -6969,3 +6969,113 @@ body.mobile-public-active { background:#f4f6f2; overscroll-behavior-y:contain; }
   font-weight: 700;
   white-space: nowrap;
 }
+
+
+/* Admin access account registration completion indicator */
+.account-overview-registration-card {
+  position: relative;
+}
+
+.account-registration-complete {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e6f4e8;
+  border: 2px solid #2f7d32;
+  color: #2f7d32;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: default;
+  z-index: 2;
+}
+
+.account-overview-registration-card > .card-header {
+  padding-right: 56px;
+}
+
+
+/* Admin new-system setup summary */
+.new-system-setup-details {
+  margin-top: 18px;
+  border-top: 1px solid #ddd8cf;
+  padding-top: 14px;
+}
+
+.new-system-setup-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 700;
+  color: #273129;
+  user-select: none;
+}
+
+.new-system-setup-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.new-system-setup-details > summary::after {
+  content: "▾";
+  font-size: 18px;
+  transition: transform 0.18s ease;
+}
+
+.new-system-setup-details[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.new-system-setup-summary-hint {
+  margin-left: auto;
+  color: #6e786f;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.new-system-setup-details[open] .new-system-setup-summary-hint {
+  display: none;
+}
+
+.new-system-setup-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.new-system-setup-grid > div {
+  border: 1px solid #ddd8cf;
+  border-radius: 12px;
+  padding: 11px 12px;
+  background: #fbfaf7;
+}
+
+.new-system-setup-grid span {
+  display: block;
+  margin-bottom: 4px;
+  color: #6e786f;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.new-system-setup-grid strong {
+  color: #273129;
+  font-size: 16px;
+}
+
+@media (max-width: 700px) {
+  .new-system-setup-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -689,7 +689,23 @@ export default function AccessAccountProfile({
   const email = account.applicant?.email || account.applicant_email || "";
   const phone = account.applicant?.phone || account.applicant_phone || "";
 
-  const name = `${firstName} ${lastName}`.trim() || "Unknown Applicant";
+  
+  const componentAddress = [
+    account.mailing_address_line1,
+    account.mailing_address_line2,
+    account.mailing_address_city,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  const mailingAddress =
+    account.mailing_address_standardized ||
+    account.mailing_address ||
+    account.mailing_address_original ||
+    componentAddress ||
+    "";
+
+const name = `${firstName} ${lastName}`.trim() || "Unknown Applicant";
   const displayName = `${editForm.firstName} ${editForm.lastName}`.trim() || name;
 
   const accountStatus = account.status || "pending";
@@ -776,7 +792,20 @@ export default function AccessAccountProfile({
 
       <div className="account-management-layout">
         <div>
-          <Card title="360° Account Overview">
+          <Card
+            title="360° Account Overview"
+            className="account-overview-registration-card"
+          >
+            {account.setup_completed_at && (
+              <div
+                className="account-registration-complete"
+                title="New system registration completed"
+                aria-label="New system registration completed"
+              >
+                ✓
+              </div>
+            )}
+
             <div className="profile-header-row">
               <div>
                 <h2>{displayName}</h2>
@@ -870,6 +899,13 @@ export default function AccessAccountProfile({
                 <div>
                   <span>Phone</span>
                   <strong>{phone || "—"}</strong>
+                </div>
+
+                <div>
+                  <span>Mailing Address</span>
+                  <strong style={{ whiteSpace: "pre-line" }}>
+                    {mailingAddress || "Address not provided"}
+                  </strong>
                 </div>
 
                 <div>
