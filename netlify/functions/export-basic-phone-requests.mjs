@@ -255,7 +255,7 @@ async function runExporter() {
       sharepoint_item_id,
       linked_request_id
     `)
-    .eq("request_date", hawaiiDate)
+    .eq("id", "7d169c7e-72d7-450b-b7f2-8f349dae3b65")
     .eq("status", "approved")
     .is("sharepoint_item_id", null)
     .is("linked_request_id", null)
