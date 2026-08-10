@@ -116,6 +116,7 @@ async function exportRequest({
     requestId: request.id,
     accessAccountId: account.id,
     accessId: cleanString(account.access_id),
+    deviceType: cleanString(account.device_type),
     firstName,
     lastName,
     phone,
