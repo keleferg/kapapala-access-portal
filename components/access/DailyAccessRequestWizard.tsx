@@ -16,9 +16,10 @@ type Gate = {
 type Vehicle = {
   id: string;
   label: string;
-  license_plate: string;
+  license_plate: string | null;
   state: string | null;
   is_default: boolean;
+  is_unlicensed_vehicle: boolean;
 };
 
 type AccessAccount = {
@@ -138,9 +139,10 @@ function buildVehicleSummary(
   const savedVehicles = selectedVehicleIds
     .map((id) => account.vehicles.find((vehicle) => vehicle.id === id))
     .filter(Boolean)
-    .map(
-      (vehicle) =>
-        `${vehicle!.label} • ${vehicle!.state || "HI"} ${vehicle!.license_plate}`
+    .map((vehicle) =>
+      vehicle!.is_unlicensed_vehicle
+        ? `${vehicle!.label} • Unlicensed ATV/UTV`
+        : `${vehicle!.label} • ${vehicle!.state || "HI"} ${vehicle!.license_plate || ""}`.trim()
     );
 
   return [...savedVehicles, additionalVehicles.trim()]
@@ -292,7 +294,8 @@ export default function DailyAccessRequestWizard() {
               label,
               license_plate,
               state,
-              is_default
+              is_default,
+              is_unlicensed_vehicle
             )
           `
           )
@@ -839,27 +842,121 @@ export default function DailyAccessRequestWizard() {
                   />
                 </label>
 
-                <label>
-                  Registered Vehicle(s)
-                  <select
-                    multiple
-                    value={selectedVehicleIds}
-                    onChange={(event) =>
-                      setSelectedVehicleIds(
-                        Array.from(event.target.selectedOptions).map(
-                          (option) => option.value
-                        )
-                      )
-                    }
-                  >
-                    {account?.vehicles?.map((vehicle) => (
-                      <option key={vehicle.id} value={vehicle.id}>
-                        {vehicle.label} • {vehicle.state || "HI"}{" "}
-                        {vehicle.license_plate}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div>
+                  <strong>Registered Vehicle(s)</strong>
+
+                  {account?.vehicles?.length ? (
+                    <div
+                      className="vehicle-checkbox-list"
+                      style={{
+                        display: "grid",
+                        gap: 6,
+                        marginTop: 8,
+                      }}
+                    >
+                      {account.vehicles.map((vehicle) => {
+                        const checked = selectedVehicleIds.includes(vehicle.id);
+
+                        const registration = vehicle.is_unlicensed_vehicle
+                          ? "Unlicensed ATV/UTV"
+                          : `${vehicle.state || "HI"} ${vehicle.license_plate || ""}`.trim();
+
+                        return (
+                          <div
+                            key={vehicle.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "flex-start",
+                              gap: 10,
+                              width: "100%",
+                              minHeight: 36,
+                              padding: "6px 10px",
+                              border: "1px solid var(--border)",
+                              borderRadius: 10,
+                              background: checked ? "#f2f8f3" : "#fbfaf7",
+                              boxSizing: "border-box",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              aria-label={`Select ${vehicle.label}`}
+                              onChange={(event) => {
+                                const isChecked = event.target.checked;
+
+                                setSelectedVehicleIds((current) =>
+                                  isChecked
+                                    ? Array.from(
+                                        new Set([...current, vehicle.id])
+                                      )
+                                    : current.filter(
+                                        (id) => id !== vehicle.id
+                                      )
+                                );
+                              }}
+                              style={{
+                                margin: 0,
+                                width: 16,
+                                height: 16,
+                                flex: "0 0 16px",
+                              }}
+                            />
+
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "flex-start",
+                                gap: 7,
+                                flexWrap: "wrap",
+                                minWidth: 0,
+                                textAlign: "left",
+                              }}
+                            >
+                              <strong
+                                style={{
+                                  fontSize: 16,
+                                  lineHeight: 1.2,
+                                }}
+                              >
+                                {vehicle.label}
+                              </strong>
+
+                              <span
+                                style={{
+                                  color: "var(--muted)",
+                                  fontSize: 15,
+                                  lineHeight: 1.2,
+                                }}
+                              >
+                                {registration}
+                              </span>
+
+                              {vehicle.is_default && (
+                                <span
+                                  style={{
+                                    color: "var(--forest)",
+                                    fontSize: 14,
+                                    lineHeight: 1.2,
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  • Primary
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="muted-text" style={{ marginTop: 8 }}>
+                      No saved vehicles. Add a vehicle from My Account or enter
+                      one below.
+                    </p>
+                  )}
+                </div>
 
                 <label>
                   Additional Vehicle(s)

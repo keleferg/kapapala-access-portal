@@ -25,6 +25,13 @@ export default function QuickActions() {
       />
 
       <QuickActionCard
+        icon="👤"
+        title="My Account"
+        description="Update your account and manage saved vehicles."
+        href="/my-account"
+      />
+
+      <QuickActionCard
         icon="📖"
         title="Rules & Safety"
         description="Review Kapāpala Ranch's Kapāpala Forest Reserve access rules and safety notices."

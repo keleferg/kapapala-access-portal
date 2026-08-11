@@ -5,6 +5,7 @@ import Card from "../ui/Card";
 import StatusBadge from "../ui/StatusBadge";
 import { getSupabaseClient } from "../../lib/supabaseClient";
 import AccessAccountWizard from "./AccessAccountWizard";
+import ManageMyVehicles from "./ManageMyVehicles";
 import { DEFAULT_ORGANIZATION, organizationOptionsWithCurrent } from "../../lib/organizationOptions";
 import { DEVICE_TYPE_OPTIONS, formatDeviceType, type DeviceType } from "../../lib/deviceTypeOptions";
 
@@ -515,6 +516,7 @@ export default function MyAccessAccountPage() {
             </div>
           )}
         </Card>
+        <ManageMyVehicles accountId={account.id} />
       </div>
     </>
   );
