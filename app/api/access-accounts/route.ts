@@ -16,6 +16,13 @@ type AccessAccountPayload = {
   lastName: string;
   email?: string;
   phone?: string;
+  mailingAddress?: string;
+  mailingStreet?: string;
+  mailingUnit?: string;
+  mailingCity?: string;
+  mailingState?: string;
+  mailingZip?: string;
+  mailingCountry?: string;
   deviceType?: "iphone" | "android" | "basic_phone";
   organization?: string;
   emergencyContactName?: string;
@@ -79,6 +86,7 @@ async function findExistingAuthUserIdByEmail(supabase: any, email: string) {
   return existingUser?.id ?? null;
 }
 
+
 export async function POST(request: Request) {
   try {
     if (!isSupabaseAdminConfigured()) {
@@ -104,6 +112,16 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!body.adminCreated && !body.mailingAddress?.trim()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Current mailing address is required.",
+        },
+        { status: 400 }
+      );
+    }
+
     if (
       !body.adminCreated &&
       !body.bypassPhotoId &&
@@ -117,6 +135,41 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const mailingCountry =
+      body.mailingCountry?.trim() || "";
+
+    const originalMailingAddress =
+      body.mailingAddress?.trim() || null;
+
+    const verifiedStreet =
+      body.mailingStreet?.trim() || "";
+
+    const verifiedUnit =
+      body.mailingUnit?.trim() || "";
+
+    const verifiedCity =
+      body.mailingCity?.trim() || "";
+
+    const verifiedState =
+      body.mailingState?.trim().toUpperCase() || "";
+
+    const verifiedZip =
+      body.mailingZip?.trim() || "";
+
+    const verifiedCountry =
+      mailingCountry || null;
+
+    const verifiedMailingAddress = [
+      verifiedStreet,
+      verifiedUnit,
+      verifiedCity,
+      verifiedState,
+      verifiedZip,
+      verifiedCountry,
+    ]
+      .filter(Boolean)
+      .join(", ");
 
     const supabase = getSupabaseAdmin();
 
@@ -239,6 +292,15 @@ export async function POST(request: Request) {
           applicant_last_name: body.lastName.trim(),
           applicant_email: normalizedEmail,
           applicant_phone: body.phone?.trim() || null,
+          mailing_address: verifiedMailingAddress,
+          mailing_address_original: originalMailingAddress,
+          mailing_address_standardized: null,
+          mailing_address_line1: verifiedStreet || null,
+          mailing_address_line2: verifiedUnit || null,
+          mailing_address_city: verifiedCity || null,
+          mailing_address_state: verifiedState || null,
+          mailing_address_postal_code: verifiedZip || null,
+          mailing_address_country: verifiedCountry,
           device_type: body.deviceType || null,
           organization: body.organization?.trim() || null,
           default_gate: body.defaultGate || null,
@@ -301,6 +363,15 @@ export async function POST(request: Request) {
           applicant_last_name: body.lastName.trim(),
           applicant_email: normalizedEmail,
           applicant_phone: body.phone?.trim() || null,
+          mailing_address: verifiedMailingAddress,
+          mailing_address_original: originalMailingAddress,
+          mailing_address_standardized: null,
+          mailing_address_line1: verifiedStreet || null,
+          mailing_address_line2: verifiedUnit || null,
+          mailing_address_city: verifiedCity || null,
+          mailing_address_state: verifiedState || null,
+          mailing_address_postal_code: verifiedZip || null,
+          mailing_address_country: verifiedCountry,
           device_type: body.deviceType || null,
           organization: body.organization?.trim() || null,
           default_gate: body.defaultGate || null,

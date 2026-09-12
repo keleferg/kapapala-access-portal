@@ -21,6 +21,12 @@ type FormState = {
   lastName: string;
   email: string;
   phone: string;
+  mailingStreet: string;
+  mailingUnit: string;
+  mailingCity: string;
+  mailingState: string;
+  mailingZip: string;
+  mailingCountry: string;
   deviceType: DeviceType | "";
   idType: string;
   vehicleDescription: string;
@@ -47,6 +53,12 @@ const initialForm: FormState = {
   lastName: "",
   email: "",
   phone: "",
+  mailingStreet: "",
+  mailingUnit: "",
+  mailingCity: "",
+  mailingState: "",
+  mailingZip: "",
+  mailingCountry: "United States",
   deviceType: "",
   idType: "",
   vehicleDescription: "",
@@ -136,6 +148,11 @@ export default function AccessAccountWizard() {
             form.lastName.trim() &&
             form.email.trim() &&
             form.phone.trim() &&
+            form.mailingStreet.trim() &&
+            form.mailingCity.trim() &&
+            form.mailingState.trim() &&
+            form.mailingZip.trim() &&
+            form.mailingCountry.trim() &&
             form.deviceType
         );
 
@@ -269,6 +286,22 @@ export default function AccessAccountWizard() {
           lastName: form.lastName.trim(),
           email: form.email.trim(),
           phone: form.phone.trim(),
+          mailingAddress: [
+            form.mailingStreet.trim(),
+            form.mailingUnit.trim(),
+            form.mailingCity.trim(),
+            form.mailingState.trim(),
+            form.mailingZip.trim(),
+            form.mailingCountry.trim(),
+          ]
+            .filter(Boolean)
+            .join(", "),
+          mailingStreet: form.mailingStreet.trim(),
+          mailingUnit: form.mailingUnit.trim(),
+          mailingCity: form.mailingCity.trim(),
+          mailingState: form.mailingState.trim(),
+          mailingZip: form.mailingZip.trim(),
+          mailingCountry: form.mailingCountry.trim(),
           deviceType: form.deviceType,
           idType: form.idType,
           idDocumentPath,
@@ -561,6 +594,91 @@ function AboutYouStep({
             placeholder="(808) 555-1234"
             value={form.phone}
             onChange={(event) => updateField("phone", event.target.value)}
+            required
+          />
+        </label>
+
+        <label>
+          Street Address
+          <input
+            type="text"
+            value={form.mailingStreet}
+            onChange={(event) =>
+              updateField("mailingStreet", event.target.value)
+            }
+            placeholder="1234 Example Street"
+            autoComplete="street-address"
+            required
+          />
+        </label>
+
+        <label>
+          Apartment / Suite / Unit
+          <input
+            type="text"
+            value={form.mailingUnit}
+            onChange={(event) =>
+              updateField("mailingUnit", event.target.value)
+            }
+            placeholder="APT 2, STE 300, Unit B"
+            autoComplete="address-line2"
+          />
+        </label>
+
+        <label>
+          City
+          <input
+            type="text"
+            value={form.mailingCity}
+            onChange={(event) =>
+              updateField("mailingCity", event.target.value)
+            }
+            placeholder="Hilo"
+            autoComplete="address-level2"
+            required
+          />
+        </label>
+
+        <label>
+          State
+          <input
+            type="text"
+            value={form.mailingState}
+            onChange={(event) =>
+              updateField("mailingState", event.target.value.toUpperCase())
+            }
+            placeholder="HI"
+            autoComplete="address-level1"
+            maxLength={2}
+            required
+          />
+        </label>
+
+        <label>
+          ZIP Code
+          <input
+            type="text"
+            value={form.mailingZip}
+            onChange={(event) =>
+              updateField("mailingZip", event.target.value)
+            }
+            placeholder="96720 or 96720-1234"
+            autoComplete="postal-code"
+            inputMode="numeric"
+            pattern="[0-9]{5}(-[0-9]{4})?"
+            required
+          />
+        </label>
+
+        <label>
+          Country
+          <input
+            type="text"
+            value={form.mailingCountry}
+            onChange={(event) =>
+              updateField("mailingCountry", event.target.value)
+            }
+            autoComplete="country-name"
             required
           />
         </label>
@@ -1114,6 +1232,25 @@ function ReviewStep({
         <div className="summary-item">
           <span>Phone</span>
           <strong>{form.phone || "—"}</strong>
+        </div>
+
+        <div className="review-row">
+          <span>Mailing Address</span>
+          <strong>
+            {form.mailingStreet || "—"}
+            {form.mailingUnit ? (
+              <>
+                <br />
+                {form.mailingUnit}
+              </>
+            ) : null}
+            <br />
+            {[form.mailingCity, form.mailingState, form.mailingZip]
+              .filter(Boolean)
+              .join(", ")}
+            <br />
+            {form.mailingCountry}
+          </strong>
         </div>
 
         <div className="summary-item">
