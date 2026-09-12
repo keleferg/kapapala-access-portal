@@ -160,6 +160,28 @@ export async function POST(request: Request) {
     const verifiedCountry =
       mailingCountry || null;
 
+    const zipMatch =
+      verifiedZip.match(/^(\d{5})(?:-(\d{4}))?$/);
+
+    const verifiedZip5 =
+      zipMatch?.[1] || verifiedZip || null;
+
+    const verifiedZip4 =
+      zipMatch?.[2] || null;
+
+    const verifiedCountryCode =
+      verifiedCountry &&
+      [
+        "united states",
+        "united states of america",
+        "us",
+        "usa",
+        "u.s.",
+        "u.s.a.",
+      ].includes(verifiedCountry.toLowerCase())
+        ? "US"
+        : verifiedCountry;
+
     const verifiedMailingAddress = [
       verifiedStreet,
       verifiedUnit,
@@ -299,8 +321,9 @@ export async function POST(request: Request) {
           mailing_address_line2: verifiedUnit || null,
           mailing_address_city: verifiedCity || null,
           mailing_address_state: verifiedState || null,
-          mailing_address_postal_code: verifiedZip || null,
-          mailing_address_country: verifiedCountry,
+          mailing_address_zip5: verifiedZip5,
+          mailing_address_zip4: verifiedZip4,
+          mailing_address_country_code: verifiedCountryCode,
           device_type: body.deviceType || null,
           organization: body.organization?.trim() || null,
           default_gate: body.defaultGate || null,
@@ -370,8 +393,9 @@ export async function POST(request: Request) {
           mailing_address_line2: verifiedUnit || null,
           mailing_address_city: verifiedCity || null,
           mailing_address_state: verifiedState || null,
-          mailing_address_postal_code: verifiedZip || null,
-          mailing_address_country: verifiedCountry,
+          mailing_address_zip5: verifiedZip5,
+          mailing_address_zip4: verifiedZip4,
+          mailing_address_country_code: verifiedCountryCode,
           device_type: body.deviceType || null,
           organization: body.organization?.trim() || null,
           default_gate: body.defaultGate || null,
