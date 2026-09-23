@@ -8,6 +8,18 @@ import GateAnalytics from "./GateAnalytics";
 
 type GateTone = "green" | "yellow" | "red";
 
+
+type GateHistoryRow = {
+  id: string;
+  gate_id: string;
+  gate_name: string;
+  valid_from: string | null;
+  valid_to: string | null;
+  active: boolean | null;
+  credential_source: string | null;
+  created_at: string;
+};
+
 type GateManagerRow = {
   gate_id: string;
   gate_name: string;
@@ -136,6 +148,11 @@ export default function GateCombinationManager() {
     null
   );
   const [savingCodeModeGateId, setSavingCodeModeGateId] = useState<string | null>(null);
+  const [historyRows, setHistoryRows] = useState<GateHistoryRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyGateId, setHistoryGateId] = useState("all");
+  const [revealedCodes, setRevealedCodes] = useState<Record<string, string>>({});
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [selectedGateId, setSelectedGateId] = useState<string | null>(null);
   const [messageByGate, setMessageByGate] = useState<Record<string, string>>(
     {}
@@ -319,6 +336,31 @@ export default function GateCombinationManager() {
     } finally {
       setSavingGateId(null);
     }
+  }
+
+  async function loadGateHistory() {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    const supabase = getSupabaseClient();
+    const end = new Date();
+    const start = new Date();
+    start.setFullYear(start.getFullYear() - 2);
+    const { data, error } = await (supabase as any).rpc("get_admin_gate_code_history", {
+      p_gate_id: historyGateId === "all" ? null : historyGateId,
+      p_start_date: start.toISOString().slice(0, 10),
+      p_end_date: end.toISOString().slice(0, 10),
+    });
+    if (error) { setHistoryError(error.message); setHistoryRows([]); }
+    else setHistoryRows((data || []) as GateHistoryRow[]);
+    setHistoryLoading(false);
+  }
+
+  async function revealHistoricalCode(row: GateHistoryRow) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await (supabase as any).rpc("admin_reveal_gate_code_history", { p_combination_id: row.id });
+    if (error) { setHistoryError(error.message); return; }
+    const result = Array.isArray(data) ? data[0] : data;
+    if (result?.combination) setRevealedCodes((current) => ({ ...current, [row.id]: result.combination }));
   }
 
   async function setGateCodeMode(gate: GateManagerRow, mode: "auto" | "manual") {
@@ -715,6 +757,25 @@ export default function GateCombinationManager() {
           </form>
         </section>
       )}
+
+      <section className="gate-manager-editor" style={{ marginTop: "1.5rem" }}>
+        <div className="gate-manager-editor__header">
+          <div><span className="gate-manager-editor__eyebrow">Administration</span><h3>Gate Code History</h3><p>Review historical combinations. Codes stay hidden until you reveal an individual record.</p></div>
+        </div>
+        <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+          <select value={historyGateId} onChange={(e) => setHistoryGateId(e.target.value)}>
+            <option value="all">All gates</option>
+            {gates.map((gate) => <option key={gate.gate_id} value={gate.gate_id}>{gate.gate_name}</option>)}
+          </select>
+          <button type="button" className="button secondary" onClick={() => void loadGateHistory()} disabled={historyLoading}>{historyLoading ? "Loading..." : "Load History"}</button>
+        </div>
+        {historyError ? <p className="form-message">{historyError}</p> : null}
+        {historyRows.length > 0 ? (
+          <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th>Date</th><th>Gate</th><th>Source</th><th>Status</th><th>Combination</th></tr></thead><tbody>
+            {historyRows.map((row) => <tr key={row.id}><td>{row.valid_from || new Date(row.created_at).toLocaleDateString()}</td><td>{row.gate_name}</td><td>{row.credential_source || "—"}</td><td>{row.active ? "Active" : "Historical"}</td><td>{revealedCodes[row.id] ? <><strong style={{ letterSpacing: "0.18em" }}>{revealedCodes[row.id]}</strong> <button type="button" className="button secondary" onClick={() => setRevealedCodes((current) => { const next={...current}; delete next[row.id]; return next; })}>Hide</button></> : <button type="button" className="button secondary" onClick={() => void revealHistoricalCode(row)}>Reveal Code</button>}</td></tr>)}
+          </tbody></table></div>
+        ) : !historyLoading ? <p className="muted">Select a gate or all gates, then choose Load History.</p> : null}
+      </section>
 
       <GateAnalytics />
     </div>
