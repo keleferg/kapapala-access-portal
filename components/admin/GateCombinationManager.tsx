@@ -505,6 +505,20 @@ export default function GateCombinationManager() {
                   <strong>{gate.today_combination || "—"}</strong>
                 </div>
 
+                <div className="combo-box combo-box--combination">
+                  <span>Next Combination</span>
+                  <strong>{gate.next_combination || "—"}</strong>
+                  <p className="muted">
+                    {gate.next_combination_date
+                      ? `Effective ${new Date(`${gate.next_combination_date}T12:00:00`).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}`
+                      : "No future combination scheduled."}
+                  </p>
+                </div>
+
 
                 <div className="combo-box combo-box--combination">
                   <span>Gate Code Mode</span>
