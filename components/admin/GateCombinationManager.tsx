@@ -19,6 +19,8 @@ type GateManagerRow = {
   next_combination_date: string | null;
   ibeacon_required: boolean | null;
   ibeacon_disabled_reason: string | null;
+  code_mode: string | null;
+  lock_device_id: string | null;
 };
 
 type GateFormState = {
@@ -133,6 +135,7 @@ export default function GateCombinationManager() {
   const [savingIBeaconGateId, setSavingIBeaconGateId] = useState<string | null>(
     null
   );
+  const [savingCodeModeGateId, setSavingCodeModeGateId] = useState<string | null>(null);
   const [selectedGateId, setSelectedGateId] = useState<string | null>(null);
   const [messageByGate, setMessageByGate] = useState<Record<string, string>>(
     {}
@@ -318,6 +321,36 @@ export default function GateCombinationManager() {
     }
   }
 
+  async function setGateCodeMode(gate: GateManagerRow, mode: "auto" | "manual") {
+    if ((gate.code_mode || "manual") === mode) return;
+
+    setSavingCodeModeGateId(gate.gate_id);
+    setMessageByGate((current) => ({ ...current, [gate.gate_id]: "" }));
+    const supabase = getSupabaseClient();
+
+    try {
+      const { error: rpcError } = await (supabase as any).rpc(
+        "admin_set_gate_code_mode",
+        { p_gate_id: gate.gate_id, p_code_mode: mode }
+      );
+      if (rpcError) throw rpcError;
+      setMessageByGate((current) => ({
+        ...current,
+        [gate.gate_id]: mode === "auto"
+          ? "Gate code mode set to Auto (Igloohome)."
+          : "Gate code mode set to Manual.",
+      }));
+      await loadGateManager();
+    } catch (modeError) {
+      setMessageByGate((current) => ({
+        ...current,
+        [gate.gate_id]: `Code mode update failed: ${modeError instanceof Error ? modeError.message : "Unable to update gate code mode."}`,
+      }));
+    } finally {
+      setSavingCodeModeGateId(null);
+    }
+  }
+
   async function toggleIBeaconRequirement(gate: GateManagerRow) {
     const currentlyRequired = gate.ibeacon_required ?? true;
     const nextRequired = !currentlyRequired;
@@ -470,6 +503,21 @@ export default function GateCombinationManager() {
                 <div className="combo-box combo-box--combination">
                   <span>Today&apos;s Combination</span>
                   <strong>{gate.today_combination || "—"}</strong>
+                </div>
+
+
+                <div className="combo-box combo-box--combination">
+                  <span>Gate Code Mode</span>
+                  <strong>{(gate.code_mode || "manual").toLowerCase() === "auto" ? "Auto" : "Manual"}</strong>
+                  <p className="muted">
+                    {(gate.code_mode || "manual").toLowerCase() === "auto"
+                      ? `Igloohome automation is enabled${gate.lock_device_id ? ` (Device ${gate.lock_device_id})` : ""}.`
+                      : "Gate combinations are managed manually."}
+                  </p>
+                  <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <button type="button" className={(gate.code_mode || "manual").toLowerCase() === "auto" ? "button primary" : "button secondary"} onClick={() => void setGateCodeMode(gate, "auto")} disabled={savingCodeModeGateId === gate.gate_id || (gate.code_mode || "manual").toLowerCase() === "auto"}>Auto</button>
+                    <button type="button" className={(gate.code_mode || "manual").toLowerCase() === "manual" ? "button primary" : "button secondary"} onClick={() => void setGateCodeMode(gate, "manual")} disabled={savingCodeModeGateId === gate.gate_id || (gate.code_mode || "manual").toLowerCase() === "manual"}>Manual</button>
+                  </div>
                 </div>
 
                 <div className="combo-box combo-box--ibeacon">
