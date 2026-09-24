@@ -158,6 +158,7 @@ export default function GateCombinationManager() {
     {}
   );
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"management" | "history">("management");
 
   useEffect(() => {
     void loadGateManager();
@@ -521,263 +522,56 @@ export default function GateCombinationManager() {
           const isSelected = selectedGateId === gate.gate_id;
 
           return (
-            <Card
-              key={gate.gate_id}
-              title={gate.gate_name || "Unnamed Gate"}
-              className={[
-                "gate-manager-card",
-                `gate-manager-card--${statusTone(gate.gate_status)}`,
-                isSelected ? "gate-manager-card--selected" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            >
-              <div className="gate-manager-header">
-                <StatusBadge
-                  label={statusLabel(gate.gate_status)}
-                  tone={statusTone(gate.gate_status)}
-                />
-
-                <span>{gateHoursLabel(gate.gate_name)}</span>
-              </div>
-
-              <div className="gate-manager-summary">
-                <div className="combo-box combo-box--combination">
-                  <span>Today&apos;s Combination</span>
-                  <strong>{gate.today_combination || "—"}</strong>
-                </div>
-
-                <div className="combo-box combo-box--combination">
-                  <span>Next Combination</span>
-                  <strong>{gate.next_combination || "—"}</strong>
-                  <p className="muted">
-                    {gate.next_combination_date
-                      ? `Effective ${new Date(`${gate.next_combination_date}T12:00:00`).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}`
-                      : "No future combination scheduled."}
-                  </p>
-                </div>
-
-
-                <div className="combo-box combo-box--combination">
-                  <span>Gate Code Mode</span>
-                  <strong>{(gate.code_mode || "manual").toLowerCase() === "auto" ? "Auto" : "Manual"}</strong>
-                  <p className="muted">
-                    {(gate.code_mode || "manual").toLowerCase() === "auto"
-                      ? `Igloohome automation is enabled${gate.lock_device_id ? ` (Device ${gate.lock_device_id})` : ""}.`
-                      : "Gate combinations are managed manually."}
-                  </p>
-                  <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                    <button type="button" className={(gate.code_mode || "manual").toLowerCase() === "auto" ? "button primary" : "button secondary"} onClick={() => void setGateCodeMode(gate, "auto")} disabled={savingCodeModeGateId === gate.gate_id || (gate.code_mode || "manual").toLowerCase() === "auto"}>Auto</button>
-                    <button type="button" className={(gate.code_mode || "manual").toLowerCase() === "manual" ? "button primary" : "button secondary"} onClick={() => void setGateCodeMode(gate, "manual")} disabled={savingCodeModeGateId === gate.gate_id || (gate.code_mode || "manual").toLowerCase() === "manual"}>Manual</button>
-                  </div>
-                </div>
-
-                <div className="combo-box combo-box--ibeacon">
-                  <span>iBeacon Requirement</span>
-
-                  <strong>{ibeaconRequired ? "Required" : "Bypassed"}</strong>
-
-                  <p className="muted">
-                    {ibeaconRequired
-                      ? "Proximity verification is required."
-                      : gate.ibeacon_disabled_reason
-                        ? `Bypass reason: ${gate.ibeacon_disabled_reason}`
-                        : "Proximity verification is bypassed."}
-                  </p>
-
-                  <button
-                    type="button"
-                    className={
-                      ibeaconRequired ? "button warning" : "button secondary"
-                    }
-                    onClick={() => void toggleIBeaconRequirement(gate)}
-                    disabled={isSavingIBeacon}
-                  >
-                    {isSavingIBeacon
-                      ? "Saving..."
-                      : ibeaconRequired
-                        ? "Disable iBeacon Requirement"
-                        : "Enable iBeacon Requirement"}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                className="gate-manager-edit-button"
-                aria-expanded={isSelected}
-                onClick={() =>
-                  setSelectedGateId((current) =>
-                    current === gate.gate_id ? null : gate.gate_id
-                  )
-                }
-              >
-                <span>
-                  <strong>
-                    {isSelected ? "Editing gate settings" : "Update gate settings"}
-                  </strong>
-                  <small>Combination, status, date, and public notice</small>
-                </span>
-
-                <span
-                  className="gate-manager-edit-button__icon"
-                  aria-hidden="true"
-                >
-                  {isSelected ? "×" : "→"}
-                </span>
-              </button>
-            </Card>
-          );
-        })}
+    <div className="gate-manager-layout">
+      <div style={{display:"flex",gap:"0.5rem",marginBottom:"1.25rem"}}>
+        <button type="button" className={activeTab==="management"?"button primary":"button secondary"} onClick={()=>setActiveTab("management")}>Gate Management</button>
+        <button type="button" className={activeTab==="history"?"button primary":"button secondary"} onClick={()=>setActiveTab("history")}>Gate History</button>
       </div>
 
-      {selectedGate && selectedForm && (
-        <section className="gate-manager-editor">
-          <div className="gate-manager-editor__header">
-            <div>
-              <span className="gate-manager-editor__eyebrow">
-                Gate configuration
-              </span>
-
-              <h3>{selectedGate.gate_name || "Unnamed Gate"}</h3>
-
-              <p>
-                Update the next combination, gate status, effective date, and
-                public-facing notice.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              className="gate-manager-editor__close"
-              aria-label="Close gate settings"
-              onClick={() => setSelectedGateId(null)}
-            >
-              ×
-            </button>
+      {activeTab==="management" ? <>
+        <section className="gate-manager-editor" style={{marginBottom:"1.25rem"}}>
+          <div className="gate-manager-editor__header"><div><span className="gate-manager-editor__eyebrow">Gate Status</span><h3>All Gates</h3><p>Current operating status for all gates.</p></div></div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:"0.75rem"}}>
+            {gates.map(gate=><div key={gate.gate_id} className="combo-box"><span>{gate.gate_name}</span><div style={{margin:"0.5rem 0"}}><StatusBadge label={statusLabel(gate.gate_status)} tone={statusTone(gate.gate_status)}/></div><p className="muted">{gateHoursLabel(gate.gate_name)}</p></div>)}
           </div>
-
-          <form
-            className="gate-manager-editor__form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void saveGate(selectedGate);
-            }}
-          >
-            <label>
-              Date
-              <input
-                type="date"
-                value={selectedForm.date}
-                onChange={(event) =>
-                  updateForm(
-                    selectedGate.gate_id,
-                    "date",
-                    event.target.value
-                  )
-                }
-              />
-            </label>
-
-            <label>
-              Combination
-              <input
-                value={selectedForm.combination}
-                onChange={(event) =>
-                  updateForm(
-                    selectedGate.gate_id,
-                    "combination",
-                    event.target.value
-                  )
-                }
-              />
-            </label>
-
-            <label>
-              Gate Status
-              <select
-                value={selectedForm.gateStatus}
-                onChange={(event) =>
-                  updateForm(
-                    selectedGate.gate_id,
-                    "gateStatus",
-                    event.target.value
-                  )
-                }
-              >
-                <option value="Open">Open</option>
-                <option value="Restricted">Restricted</option>
-                <option value="Closed">Closed</option>
-              </select>
-            </label>
-
-            <label className="gate-manager-editor__note">
-              Public Note
-              <textarea
-                value={selectedForm.notes}
-                onChange={(event) =>
-                  updateForm(
-                    selectedGate.gate_id,
-                    "notes",
-                    event.target.value
-                  )
-                }
-              />
-            </label>
-
-            <div className="gate-manager-editor__actions">
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => setSelectedGateId(null)}
-              >
-                Cancel
-              </button>
-
-              <button
-                type="submit"
-                className="button primary"
-                disabled={savingGateId === selectedGate.gate_id}
-              >
-                {savingGateId === selectedGate.gate_id
-                  ? "Saving..."
-                  : "Save Gate Combination"}
-              </button>
-            </div>
-
-            {messageByGate[selectedGate.gate_id] ? (
-              <p className="form-message gate-manager-editor__message">
-                {messageByGate[selectedGate.gate_id]}
-              </p>
-            ) : null}
-          </form>
         </section>
-      )}
 
-      <section className="gate-manager-editor" style={{ marginTop: "1.5rem" }}>
-        <div className="gate-manager-editor__header">
-          <div><span className="gate-manager-editor__eyebrow">Administration</span><h3>Gate Code History</h3><p>Review historical combinations. Codes stay hidden until you reveal an individual record.</p></div>
-        </div>
-        <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
-          <select value={historyGateId} onChange={(e) => setHistoryGateId(e.target.value)}>
-            <option value="all">All gates</option>
-            {gates.map((gate) => <option key={gate.gate_id} value={gate.gate_id}>{gate.gate_name}</option>)}
+        <section className="gate-manager-editor" style={{marginBottom:"1.25rem"}}>
+          <div className="gate-manager-editor__header"><div><span className="gate-manager-editor__eyebrow">Gate Management</span><h3>Select Gate</h3><p>Select an individual gate to open its management profile.</p></div></div>
+          <select value={selectedGateId||""} onChange={e=>setSelectedGateId(e.target.value||null)} style={{width:"100%",maxWidth:"420px"}}>
+            <option value="">Select a gate...</option>{gates.map(gate=><option key={gate.gate_id} value={gate.gate_id}>{gate.gate_name}</option>)}
           </select>
-          <button type="button" className="button secondary" onClick={() => void loadGateHistory()} disabled={historyLoading}>{historyLoading ? "Loading..." : "Load History"}</button>
-        </div>
-        {historyError ? <p className="form-message">{historyError}</p> : null}
-        {historyRows.length > 0 ? (
-          <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th>Date</th><th>Gate</th><th>Source</th><th>Status</th><th>Combination</th></tr></thead><tbody>
-            {historyRows.map((row) => <tr key={row.id}><td>{row.valid_from || new Date(row.created_at).toLocaleDateString()}</td><td>{row.gate_name}</td><td>{row.credential_source || "—"}</td><td>{row.active ? "Active" : "Historical"}</td><td>{revealedCodes[row.id] ? <><strong style={{ letterSpacing: "0.18em" }}>{revealedCodes[row.id]}</strong> <button type="button" className="button secondary" onClick={() => setRevealedCodes((current) => { const next={...current}; delete next[row.id]; return next; })}>Hide</button></> : <button type="button" className="button secondary" onClick={() => void revealHistoricalCode(row)}>Reveal Code</button>}</td></tr>)}
-          </tbody></table></div>
-        ) : !historyLoading ? <p className="muted">Select a gate or all gates, then choose Load History.</p> : null}
-      </section>
+        </section>
 
-      <GateAnalytics />
+        {selectedGate && selectedForm ? <>
+          <Card title={selectedGate.gate_name||"Unnamed Gate"} className={`gate-manager-card gate-manager-card--${statusTone(selectedGate.gate_status)}`}>
+            <div className="gate-manager-header"><StatusBadge label={statusLabel(selectedGate.gate_status)} tone={statusTone(selectedGate.gate_status)}/><span>{gateHoursLabel(selectedGate.gate_name)}</span></div>
+            <div className="gate-manager-summary">
+              <div className="combo-box combo-box--combination"><span>Today&apos;s Combination</span><strong>{selectedGate.today_combination||"—"}</strong></div>
+              <div className="combo-box combo-box--combination"><span>Next Combination</span><strong>{selectedGate.next_combination||"—"}</strong><p className="muted">{selectedGate.next_combination_date?`Effective ${new Date(`${selectedGate.next_combination_date}T12:00:00`).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`:"No future combination scheduled."}</p></div>
+              <div className="combo-box combo-box--combination"><span>Gate Code Mode</span><strong>{(selectedGate.code_mode||"manual").toLowerCase()==="auto"?"Auto":"Manual"}</strong><p className="muted">{(selectedGate.code_mode||"manual").toLowerCase()==="auto"?`Igloohome automation is enabled${selectedGate.lock_device_id?` (Device ${selectedGate.lock_device_id})`:""}.`:"Gate combinations are managed manually."}</p><div style={{display:"flex",gap:"0.5rem"}}><button type="button" className={(selectedGate.code_mode||"manual").toLowerCase()==="auto"?"button primary":"button secondary"} onClick={()=>void setGateCodeMode(selectedGate,"auto")} disabled={savingCodeModeGateId===selectedGate.gate_id||(selectedGate.code_mode||"manual").toLowerCase()==="auto"}>Auto</button><button type="button" className={(selectedGate.code_mode||"manual").toLowerCase()==="manual"?"button primary":"button secondary"} onClick={()=>void setGateCodeMode(selectedGate,"manual")} disabled={savingCodeModeGateId===selectedGate.gate_id||(selectedGate.code_mode||"manual").toLowerCase()==="manual"}>Manual</button></div></div>
+              <div className="combo-box combo-box--ibeacon"><span>iBeacon Requirement</span><strong>{(selectedGate.ibeacon_required??true)?"Required":"Bypassed"}</strong><p className="muted">{(selectedGate.ibeacon_required??true)?"Proximity verification is required.":selectedGate.ibeacon_disabled_reason?`Bypass reason: ${selectedGate.ibeacon_disabled_reason}`:"Proximity verification is bypassed."}</p><button type="button" className={(selectedGate.ibeacon_required??true)?"button warning":"button secondary"} onClick={()=>void toggleIBeaconRequirement(selectedGate)} disabled={savingIBeaconGateId===selectedGate.gate_id}>{savingIBeaconGateId===selectedGate.gate_id?"Saving...":(selectedGate.ibeacon_required??true)?"Disable iBeacon Requirement":"Enable iBeacon Requirement"}</button></div>
+            </div>
+          </Card>
+          <section className="gate-manager-editor" style={{marginTop:"1.25rem"}}>
+            <div className="gate-manager-editor__header"><div><span className="gate-manager-editor__eyebrow">Gate Configuration</span><h3>{selectedGate.gate_name}</h3><p>Update the next combination, gate status, effective date, and public-facing notice.</p></div></div>
+            <form className="gate-manager-editor__form" onSubmit={e=>{e.preventDefault();void saveGate(selectedGate);}}>
+              <label>Date<input type="date" value={selectedForm.date} onChange={e=>updateForm(selectedGate.gate_id,"date",e.target.value)}/></label>
+              <label>Combination<input value={selectedForm.combination} onChange={e=>updateForm(selectedGate.gate_id,"combination",e.target.value)}/></label>
+              <label>Gate Status<select value={selectedForm.gateStatus} onChange={e=>updateForm(selectedGate.gate_id,"gateStatus",e.target.value)}><option value="Open">Open</option><option value="Restricted">Restricted</option><option value="Closed">Closed</option></select></label>
+              <label className="gate-manager-editor__note">Public Note<textarea value={selectedForm.notes} onChange={e=>updateForm(selectedGate.gate_id,"notes",e.target.value)}/></label>
+              <div className="gate-manager-editor__actions"><button type="submit" className="button primary" disabled={savingGateId===selectedGate.gate_id}>{savingGateId===selectedGate.gate_id?"Saving...":"Save Gate Combination"}</button></div>
+              {messageByGate[selectedGate.gate_id]?<p className="form-message gate-manager-editor__message">{messageByGate[selectedGate.gate_id]}</p>:null}
+            </form>
+          </section>
+          <GateAnalytics />
+        </>:null}
+      </> : <section className="gate-manager-editor">
+        <div className="gate-manager-editor__header"><div><span className="gate-manager-editor__eyebrow">Administration</span><h3>Gate Code History</h3><p>Review historical combinations. Codes stay hidden until you reveal an individual record.</p></div></div>
+        <div style={{display:"flex",gap:"0.75rem",marginBottom:"1rem",flexWrap:"wrap"}}><select value={historyGateId} onChange={e=>setHistoryGateId(e.target.value)}><option value="all">All gates</option>{gates.map(gate=><option key={gate.gate_id} value={gate.gate_id}>{gate.gate_name}</option>)}</select><button type="button" className="button secondary" onClick={()=>void loadGateHistory()} disabled={historyLoading}>{historyLoading?"Loading...":"Load History"}</button></div>
+        {historyError?<p className="form-message">{historyError}</p>:null}
+        {historyRows.length>0?<div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr><th>Date</th><th>Gate</th><th>Source</th><th>Status</th><th>Combination</th></tr></thead><tbody>{historyRows.map(row=><tr key={row.id}><td>{row.valid_from||new Date(row.created_at).toLocaleDateString()}</td><td>{row.gate_name}</td><td>{row.credential_source||"—"}</td><td>{row.active?"Active":"Historical"}</td><td>{revealedCodes[row.id]?<><strong style={{letterSpacing:"0.18em"}}>{revealedCodes[row.id]}</strong> <button type="button" className="button secondary" onClick={()=>setRevealedCodes(current=>{const next={...current};delete next[row.id];return next;})}>Hide</button></>:<button type="button" className="button secondary" onClick={()=>void revealHistoricalCode(row)}>Reveal Code</button>}</td></tr>)}</tbody></table></div>:!historyLoading?<p className="muted">Select a gate or all gates, then choose Load History.</p>:null}
+      </section>}
     </div>
   );
 }
