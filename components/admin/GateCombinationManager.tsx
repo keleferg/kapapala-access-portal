@@ -588,6 +588,7 @@ export default function GateCombinationManager() {
 
           {selectedGate && selectedForm ? (
             <>
+              <div className="gate-management-detail-grid">
               <Card
                 title={selectedGate.gate_name || "Unnamed Gate"}
                 className={`gate-manager-card gate-manager-card--${statusTone(
@@ -801,6 +802,7 @@ export default function GateCombinationManager() {
                   ) : null}
                 </form>
               </section>
+              </div>
 
               <GateAnalytics />
             </>
