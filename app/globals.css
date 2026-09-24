@@ -7079,3 +7079,23 @@ body.mobile-public-active { background:#f4f6f2; overscroll-behavior-y:contain; }
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Gate management selected-gate layout */
+.gate-management-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.gate-management-detail-grid > .gate-manager-editor {
+  margin-top: 0 !important;
+  height: 100%;
+}
+
+@media (max-width: 1000px) {
+  .gate-management-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
