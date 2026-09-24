@@ -10,6 +10,7 @@ type LogRow = {
   id: string;
   occurred_at: string;
   actor_email: string | null;
+  actor_name: string | null;
   actor_role: string | null;
   action: string;
   entity_type: string | null;
@@ -72,7 +73,7 @@ export default function SystemLogPage() {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((row) =>
-      [row.actor_email,row.actor_role,row.action,row.entity_type,row.severity,row.summary,row.source,JSON.stringify(row.details)]
+      [row.actor_name,row.actor_email,row.actor_role,row.action,row.entity_type,row.severity,row.summary,row.source,JSON.stringify(row.details)]
         .filter(Boolean).join(" ").toLowerCase().includes(q)
     );
   }, [rows, search]);
@@ -117,7 +118,7 @@ export default function SystemLogPage() {
               return (
                 <div key={row.id}>
                   <strong>{formatTime(row.occurred_at)}</strong>
-                  <span>{row.actor_email || label(row.actor_role) || "System"}</span>
+                  <span>{row.actor_name || row.actor_email || label(row.actor_role) || "System"}</span>
                   <span title={row.summary || undefined}>{row.summary || label(row.action)}</span>
                   <span>{label(row.entity_type)}</span>
                   <StatusBadge label={label(row.severity || "info")} tone={tone} />
