@@ -141,6 +141,38 @@ export async function proxy(request: NextRequest) {
     return copyCookies(response, redirectResponse);
   }
 
+  /*
+   * Require normal public users to finish the existing-account setup
+   * before they can enter the authenticated portal. Admin and super-user
+   * accounts retain access so administrative workflows cannot be locked out.
+   */
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, app_role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const appRole = profile?.app_role?.toLowerCase() ?? "public";
+  const isPrivilegedUser = appRole === "admin" || appRole === "super_user";
+
+  if (!isPrivilegedUser && profile?.id) {
+    const { data: accessAccount } = await supabase
+      .from("access_accounts")
+      .select("setup_completed_at")
+      .eq("profile_id", profile.id)
+      .maybeSingle();
+
+    if (accessAccount && !accessAccount.setup_completed_at) {
+      const setupUrl = request.nextUrl.clone();
+      setupUrl.pathname = "/complete-account-setup";
+      setupUrl.search = "";
+
+      const redirectResponse = NextResponse.redirect(setupUrl);
+
+      return copyCookies(response, redirectResponse);
+    }
+  }
+
   if (
     isAndroidPhone(request) &&
     !pathname.startsWith("/mobile") &&
