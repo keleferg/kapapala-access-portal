@@ -133,6 +133,8 @@ export default function DailyAccessRequestDetail({
     null
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   useEffect(() => {
     void loadRequest();
@@ -183,41 +185,7 @@ export default function DailyAccessRequestDetail({
     setLoading(false);
   }
 
-  async function cancelRequest() {
-    if (!request || request.status !== "approved") return;
-
-    const reason = window.prompt(
-      "Enter the reason this approved request is being cancelled. This message will be relayed to the user:"
-    )?.trim();
-    if (!reason) return;
-    if (!window.confirm("Cancel this approved access request?")) return;
-
-    setUpdatingStatus("cancelled");
-    try {
-      const response = await fetch(
-        `/api/admin/daily-access-requests/${request.id}/status`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "cancelled", adminNotes: reason }),
-        }
-      );
-      const result = await response.json().catch(() => null);
-      if (!response.ok || !result?.success) {
-        alert(result?.error || "Unable to cancel this request.");
-        return;
-      }
-      await loadRequest();
-      if (result?.notificationWarning) alert(result.notificationWarning);
-    } catch (error) {
-      console.error("Unable to cancel request:", error);
-      alert(error instanceof Error ? error.message : "Unable to cancel this request.");
-    } finally {
-      setUpdatingStatus(null);
-    }
-  }
-
-  async function updateStatus(status: "approved" | "denied") {
+  async function cancelRequest() {\n    if (!request || request.status !== "approved") return;\n    const reason = cancelReason.trim();\n    const gateName = request.gates?.name?.trim() || "";\n    if (!reason) { alert("A cancellation reason is required."); return; }\n    if (gateName && reason.toLowerCase() === gateName.toLowerCase()) { alert("The cancellation reason cannot be only the gate name. Please enter the actual reason for the cancellation."); return; }\n    if (!window.confirm(`Cancel 1 ${gateName || "access"} request for ${formatDate(request.request_date)}?\n\nReason: ${reason}`)) return;\n    setUpdatingStatus("cancelled");\n    try {\n      const response = await fetch(`/api/admin/daily-access-requests/${request.id}/status`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "cancelled", adminNotes: reason }) });\n      const result = await response.json().catch(() => null);\n      if (!response.ok || !result?.success) { alert(result?.error || "Unable to cancel this request."); return; }\n      setShowCancelDialog(false); setCancelReason(""); await loadRequest();\n      if (result?.notificationWarning) alert(result.notificationWarning);\n    } catch (error) { console.error("Unable to cancel request:", error); alert(error instanceof Error ? error.message : "Unable to cancel this request."); }\n    finally { setUpdatingStatus(null); }\n  }\n  async function updateStatus(status: "approved" | "denied") {
     if (!request) return;
 
     const confirmed = window.confirm(
@@ -291,7 +259,7 @@ export default function DailyAccessRequestDetail({
   const isApproved = request.status === "approved";
 
   return (
-    <div className="request-detail-page">
+    <div className="request-detail-page">\n      {showCancelDialog && (\n        <div className="cancellation-modal-backdrop">\n          <div className="cancellation-modal" role="dialog" aria-modal="true" aria-labelledby="cancel-detail-title">\n            <h2 id="cancel-detail-title">Cancel Access Request</h2>\n            <div className="cancellation-summary">\n              <strong>{request.gates?.name || "Unknown Gate"}</strong>\n              <span>{formatDate(request.request_date)}</span>\n              <span>{requesterName}</span>\n            </div>\n            <label className="cancellation-field">\n              <span>Cancellation Reason</span>\n              <textarea rows={4} required value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Enter the actual reason for the cancellation. This exact message will be sent to the user." autoFocus />\n              <small>This exact reason will be saved to the request and included in the cancellation email.</small>\n            </label>\n            <div className="cancellation-modal-actions">\n              <button className="button secondary" type="button" onClick={() => { setShowCancelDialog(false); setCancelReason(""); }} disabled={updatingStatus !== null}>Keep Request</button>\n              <button className="button danger" type="button" onClick={() => void cancelRequest()} disabled={updatingStatus !== null || !cancelReason.trim()}>\n                {updatingStatus === "cancelled" ? "Cancelling..." : "Confirm Cancellation"}\n              </button>\n            </div>\n          </div>\n        </div>\n      )}\n
       <Link className="request-detail-back-link" href="/admin/requests">
         ← Back to Requests
       </Link>
@@ -390,7 +358,7 @@ export default function DailyAccessRequestDetail({
             <button
               className="button danger"
               type="button"
-              onClick={() => void cancelRequest()}
+              onClick={() => { setCancelReason(""); setShowCancelDialog(true); }}
               disabled={updatingStatus !== null}
             >
               {updatingStatus === "cancelled" ? "Cancelling..." : "Cancel Request"}
