@@ -7,7 +7,7 @@ import StatusBadge from "../ui/StatusBadge";
 import { getSupabaseClient } from "../../lib/supabaseClient";
 
 type RequestStatus = "pending" | "approved" | "denied" | string;
-type RequestTab = "pending" | "approved" | "denied";
+type RequestTab = "pending" | "approved" | "denied" | "cancelled";
 type DateFilterMode = "today" | "tomorrow" | "single" | "range";
 
 type DailyAccessRequest = {
@@ -64,6 +64,12 @@ const tabs: {
     emptyMessage:
       "There are no denied daily access requests for this date filter.",
   },
+  {
+    key: "cancelled",
+    label: "Cancelled",
+    emptyMessage:
+      "There are no cancelled daily access requests for this date filter.",
+  },
 ];
 
 function getRequesterName(request: DailyAccessRequest) {
@@ -110,7 +116,7 @@ function formatRequestDate(dateValue: string) {
 
 function statusTone(status: RequestStatus): "green" | "yellow" | "red" {
   if (status === "approved") return "green";
-  if (status === "denied") return "red";
+  if (status === "denied" || status === "cancelled") return "red";
   return "yellow";
 }
 
@@ -193,6 +199,7 @@ export default function DailyAccessRequestQueue() {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [bulkCancelling, setBulkCancelling] = useState(false);
 
   useEffect(() => {
     void loadRequests({
@@ -370,6 +377,99 @@ export default function DailyAccessRequestQueue() {
     }
   }
 
+  async function cancelRequest(id: string) {
+    const reason = window.prompt(
+      "Enter the reason this approved request is being cancelled. This message will be relayed to the user:"
+    )?.trim();
+
+    if (!reason) return;
+
+    if (!window.confirm("Cancel this approved access request?")) return;
+
+    setUpdatingId(id);
+    try {
+      const response = await fetch(`/api/admin/daily-access-requests/${id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "cancelled", adminNotes: reason }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        alert(result?.error || "Unable to cancel this access request.");
+        return;
+      }
+      await loadRequests();
+      setActiveTab("cancelled");
+      if (result?.notificationWarning) alert(result.notificationWarning);
+    } catch (error) {
+      console.error("Unable to cancel request:", error);
+      alert(error instanceof Error ? error.message : "Unable to cancel this access request.");
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  async function cancelGateDay() {
+    const date =
+      dateFilterMode === "today" ? getHawaiiDate(0) :
+      dateFilterMode === "tomorrow" ? getHawaiiDate(1) :
+      dateFilterMode === "single" ? selectedDate : "";
+
+    if (!date) {
+      alert("Select Today, Tomorrow, or a single date before using gate-wide cancellation.");
+      return;
+    }
+
+    const approved = requests.filter((request) => request.status === "approved" && getRequestDateKey(request.request_date) === date);
+    const gateNames = Array.from(new Set(approved.map(getGateName))).sort();
+    if (!gateNames.length) {
+      alert("There are no approved requests for this date.");
+      return;
+    }
+
+    const gate = window.prompt(
+      `Enter the gate name exactly as shown below:\n\n${gateNames.join("\n")}\n\nOnly approved requests for that gate on ${formatRequestDate(date)} will be cancelled.`
+    )?.trim();
+    if (!gate) return;
+
+    const affected = approved.filter((request) => getGateName(request) === gate);
+    if (!affected.length) {
+      alert("No approved requests matched that gate and date.");
+      return;
+    }
+
+    const reason = window.prompt(
+      `Enter the cancellation reason for all ${affected.length} approved request${affected.length === 1 ? "" : "s"} at ${gate} on ${formatRequestDate(date)}. This message will be relayed to each user:`
+    )?.trim();
+    if (!reason) return;
+
+    if (!window.confirm(
+      `This will cancel ${affected.length} approved request${affected.length === 1 ? "" : "s"} for ${gate} on ${formatRequestDate(date)}. Continue?`
+    )) return;
+
+    setBulkCancelling(true);
+    try {
+      const response = await fetch("/api/admin/daily-access-requests/bulk-cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gateName: gate, requestDate: date, reason }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        alert(result?.error || "Unable to cancel gate requests.");
+        return;
+      }
+      await loadRequests();
+      setActiveTab("cancelled");
+      alert(`Cancelled ${result.cancelledCount} request${result.cancelledCount === 1 ? "" : "s"}.${result.notificationFailures ? ` ${result.notificationFailures} notification(s) could not be sent.` : ""}`);
+    } catch (error) {
+      console.error("Unable to bulk cancel requests:", error);
+      alert(error instanceof Error ? error.message : "Unable to cancel gate requests.");
+    } finally {
+      setBulkCancelling(false);
+    }
+  }
+
   function activateTodayFilter() {
     const today = getHawaiiDate(0);
 
@@ -464,6 +564,16 @@ export default function DailyAccessRequestQueue() {
             disabled={loading}
           >
             Refresh
+          </button>
+
+          <button
+            className="button danger"
+            type="button"
+            onClick={() => void cancelGateDay()}
+            disabled={loading || bulkCancelling}
+            title="Cancel all approved requests for one gate on the selected day"
+          >
+            {bulkCancelling ? "Cancelling..." : "Cancel Gate Requests"}
           </button>
         </div>
 
@@ -666,6 +776,17 @@ export default function DailyAccessRequestQueue() {
                       >
                         View
                       </Link>
+
+                      {request.status === "approved" && (
+                        <button
+                          className="button danger"
+                          type="button"
+                          onClick={() => void cancelRequest(request.id)}
+                          disabled={isUpdating}
+                        >
+                          {isUpdating ? "Cancelling..." : "Cancel"}
+                        </button>
+                      )}
 
                       {isPending && (
                         <>
