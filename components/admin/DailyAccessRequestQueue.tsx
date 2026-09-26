@@ -200,6 +200,12 @@ export default function DailyAccessRequestQueue() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [bulkCancelling, setBulkCancelling] = useState(false);
+  const [cancelDialog, setCancelDialog] = useState<
+    | { mode: "single"; requestId: string; gate: string; date: string; count: number }
+    | { mode: "bulk"; gate: string; date: string; count: number }
+    | null
+  >(null);
+  const [cancelReason, setCancelReason] = useState("");
 
   useEffect(() => {
     void loadRequests({
@@ -377,100 +383,7 @@ export default function DailyAccessRequestQueue() {
     }
   }
 
-  async function cancelRequest(id: string) {
-    const reason = window.prompt(
-      "Enter the reason this approved request is being cancelled. This message will be relayed to the user:"
-    )?.trim();
-
-    if (!reason) return;
-
-    if (!window.confirm("Cancel this approved access request?")) return;
-
-    setUpdatingId(id);
-    try {
-      const response = await fetch(`/api/admin/daily-access-requests/${id}/status`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "cancelled", adminNotes: reason }),
-      });
-      const result = await response.json().catch(() => null);
-      if (!response.ok || !result?.success) {
-        alert(result?.error || "Unable to cancel this access request.");
-        return;
-      }
-      await loadRequests();
-      setActiveTab("cancelled");
-      if (result?.notificationWarning) alert(result.notificationWarning);
-    } catch (error) {
-      console.error("Unable to cancel request:", error);
-      alert(error instanceof Error ? error.message : "Unable to cancel this access request.");
-    } finally {
-      setUpdatingId(null);
-    }
-  }
-
-  async function cancelGateDay() {
-    const date =
-      dateFilterMode === "today" ? getHawaiiDate(0) :
-      dateFilterMode === "tomorrow" ? getHawaiiDate(1) :
-      dateFilterMode === "single" ? selectedDate : "";
-
-    if (!date) {
-      alert("Select Today, Tomorrow, or a single date before using gate-wide cancellation.");
-      return;
-    }
-
-    const approved = requests.filter((request) => request.status === "approved" && getRequestDateKey(request.request_date) === date);
-    const gateNames = Array.from(new Set(approved.map(getGateName))).sort();
-    if (!gateNames.length) {
-      alert("There are no approved requests for this date.");
-      return;
-    }
-
-    const gate = window.prompt(
-      `Enter the gate name exactly as shown below:\n\n${gateNames.join("\n")}\n\nOnly approved requests for that gate on ${formatRequestDate(date)} will be cancelled.`
-    )?.trim();
-    if (!gate) return;
-
-    const affected = approved.filter((request) => getGateName(request) === gate);
-    if (!affected.length) {
-      alert("No approved requests matched that gate and date.");
-      return;
-    }
-
-    const reason = window.prompt(
-      `Enter the cancellation reason for all ${affected.length} approved request${affected.length === 1 ? "" : "s"} at ${gate} on ${formatRequestDate(date)}. This message will be relayed to each user:`
-    )?.trim();
-    if (!reason) return;
-
-    if (!window.confirm(
-      `This will cancel ${affected.length} approved request${affected.length === 1 ? "" : "s"} for ${gate} on ${formatRequestDate(date)}. Continue?`
-    )) return;
-
-    setBulkCancelling(true);
-    try {
-      const response = await fetch("/api/admin/daily-access-requests/bulk-cancel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gateName: gate, requestDate: date, reason }),
-      });
-      const result = await response.json().catch(() => null);
-      if (!response.ok || !result?.success) {
-        alert(result?.error || "Unable to cancel gate requests.");
-        return;
-      }
-      await loadRequests();
-      setActiveTab("cancelled");
-      alert(`Cancelled ${result.cancelledCount} request${result.cancelledCount === 1 ? "" : "s"}.${result.notificationFailures ? ` ${result.notificationFailures} notification(s) could not be sent.` : ""}`);
-    } catch (error) {
-      console.error("Unable to bulk cancel requests:", error);
-      alert(error instanceof Error ? error.message : "Unable to cancel gate requests.");
-    } finally {
-      setBulkCancelling(false);
-    }
-  }
-
-  function activateTodayFilter() {
+  function cancelRequest(id: string) {\n    const request = requests.find((item) => item.id === id);\n    if (!request) return;\n    setCancelReason("");\n    setCancelDialog({ mode: "single", requestId: id, gate: getGateName(request), date: getRequestDateKey(request.request_date), count: 1 });\n  }\n\n  function cancelGateDay() {\n    const date = dateFilterMode === "today" ? getHawaiiDate(0) : dateFilterMode === "tomorrow" ? getHawaiiDate(1) : dateFilterMode === "single" ? selectedDate : "";\n    if (!date) { alert("Select Today, Tomorrow, or a single date before using gate-wide cancellation."); return; }\n    const approved = requests.filter((r) => r.status === "approved" && getRequestDateKey(r.request_date) === date);\n    if (!approved.length) { alert("There are no approved requests for this date."); return; }\n    setCancelReason("");\n    setCancelDialog({ mode: "bulk", gate: "", date, count: 0 });\n  }\n\n  function selectCancellationGate(gate: string) {\n    if (!cancelDialog || cancelDialog.mode !== "bulk") return;\n    const count = requests.filter((r) => r.status === "approved" && getRequestDateKey(r.request_date) === cancelDialog.date && getGateName(r) === gate).length;\n    setCancelDialog({ ...cancelDialog, gate, count });\n  }\n\n  async function confirmCancellation() {\n    if (!cancelDialog) return;\n    const reason = cancelReason.trim();\n    if (!reason) { alert("A cancellation reason is required."); return; }\n    if (!cancelDialog.gate) { alert("Select a gate."); return; }\n    if (reason.toLowerCase() === cancelDialog.gate.trim().toLowerCase()) {\n      alert("The cancellation reason cannot be only the gate name. Please enter the actual reason for the cancellation."); return;\n    }\n    const confirmed = window.confirm(`Cancel ${cancelDialog.count} ${cancelDialog.gate} request${cancelDialog.count === 1 ? "" : "s"} for ${formatRequestDate(cancelDialog.date)}?\n\nReason: ${reason}`);\n    if (!confirmed) return;\n\n    if (cancelDialog.mode === "single") {\n      setUpdatingId(cancelDialog.requestId);\n      try {\n        const response = await fetch(`/api/admin/daily-access-requests/${cancelDialog.requestId}/status`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "cancelled", adminNotes: reason }) });\n        const result = await response.json().catch(() => null);\n        if (!response.ok || !result?.success) { alert(result?.error || "Unable to cancel this access request."); return; }\n        setCancelDialog(null); setCancelReason(""); await loadRequests(); setActiveTab("cancelled");\n        if (result?.notificationWarning) alert(result.notificationWarning);\n      } catch (error) { console.error("Unable to cancel request:", error); alert(error instanceof Error ? error.message : "Unable to cancel this access request."); }\n      finally { setUpdatingId(null); }\n      return;\n    }\n\n    setBulkCancelling(true);\n    try {\n      const response = await fetch("/api/admin/daily-access-requests/bulk-cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ gateName: cancelDialog.gate, requestDate: cancelDialog.date, reason }) });\n      const result = await response.json().catch(() => null);\n      if (!response.ok || !result?.success) { alert(result?.error || "Unable to cancel gate requests."); return; }\n      setCancelDialog(null); setCancelReason(""); await loadRequests(); setActiveTab("cancelled");\n      alert(`Cancelled ${result.cancelledCount} request${result.cancelledCount === 1 ? "" : "s"}.${result.notificationFailures ? ` ${result.notificationFailures} notification(s) could not be sent.` : ""}`);\n    } catch (error) { console.error("Unable to bulk cancel requests:", error); alert(error instanceof Error ? error.message : "Unable to cancel gate requests."); }\n    finally { setBulkCancelling(false); }\n  }\n  function activateTodayFilter() {
     const today = getHawaiiDate(0);
 
     setDateFilterMode("today");
@@ -514,7 +427,7 @@ export default function DailyAccessRequestQueue() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4">\n      {cancelDialog && (\n        <div className="cancellation-modal-backdrop">\n          <div className="cancellation-modal" role="dialog" aria-modal="true" aria-labelledby="cancel-dialog-title">\n            <h2 id="cancel-dialog-title">{cancelDialog.mode === "bulk" ? "Cancel Gate Requests" : "Cancel Access Request"}</h2>\n            {cancelDialog.mode === "bulk" && (\n              <label className="cancellation-field">\n                <span>Gate</span>\n                <select value={cancelDialog.gate} onChange={(event) => selectCancellationGate(event.target.value)}>\n                  <option value="">Select a gate</option>\n                  {Array.from(new Set(requests.filter((r) => r.status === "approved" && getRequestDateKey(r.request_date) === cancelDialog.date).map(getGateName))).sort().map((gate) => (\n                    <option key={gate} value={gate}>{gate}</option>\n                  ))}\n                </select>\n              </label>\n            )}\n            <div className="cancellation-summary">\n              <strong>{cancelDialog.gate || "Select a gate"}</strong>\n              <span>{formatRequestDate(cancelDialog.date)}</span>\n              <span>{cancelDialog.count} approved request{cancelDialog.count === 1 ? "" : "s"} will be cancelled</span>\n            </div>\n            <label className="cancellation-field">\n              <span>Cancellation Reason</span>\n              <textarea rows={4} required value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Enter the actual reason for the cancellation. This exact message will be sent to the user." />\n              <small>This exact reason will be saved to each request and included in the cancellation email.</small>\n            </label>\n            <div className="cancellation-modal-actions">\n              <button className="button secondary" type="button" onClick={() => { setCancelDialog(null); setCancelReason(""); }} disabled={bulkCancelling || updatingId !== null}>Keep Request</button>\n              <button className="button danger" type="button" onClick={() => void confirmCancellation()} disabled={bulkCancelling || updatingId !== null || !cancelReason.trim() || !cancelDialog.gate}>\n                {bulkCancelling || updatingId !== null ? "Cancelling..." : "Confirm Cancellation"}\n              </button>\n            </div>\n          </div>\n        </div>\n      )}\n
       <Card title="Request Date Filter">
         <div className="filter-chip-row">
           <button
