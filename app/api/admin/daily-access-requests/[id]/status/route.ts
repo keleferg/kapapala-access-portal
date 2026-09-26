@@ -68,6 +68,25 @@ export async function POST(
       );
     }
 
+    const existingGateName = Array.isArray(existing.gates)
+      ? existing.gates[0]?.name
+      : existing.gates?.name;
+
+    if (
+      body.status === "cancelled" &&
+      existingGateName &&
+      reason.toLowerCase() === String(existingGateName).trim().toLowerCase()
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "The cancellation reason cannot be only the gate name. Enter the actual reason for the cancellation.",
+        },
+        { status: 400 }
+      );
+    }
+
     const { data, error } = await (supabase as any)
       .from("daily_access_requests")
       .update({
