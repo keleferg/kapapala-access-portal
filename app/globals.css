@@ -7099,3 +7099,19 @@ body.mobile-public-active { background:#f4f6f2; overscroll-behavior-y:contain; }
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Admin cancellation dialog */
+.cancellation-modal-backdrop { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:20px; background:rgba(10,25,16,.55); }
+.cancellation-modal { width:min(560px,100%); padding:24px; border:1px solid var(--border); border-radius:18px; background:var(--card); box-shadow:0 24px 70px rgba(0,0,0,.28); }
+.cancellation-modal h2 { margin:0 0 18px; color:var(--text); font-family:var(--poppins); font-size:1.25rem; }
+.cancellation-field { display:grid; gap:7px; margin-top:16px; }
+.cancellation-field > span { font-weight:800; color:var(--text); }
+.cancellation-field select,.cancellation-field textarea { width:100%; border:1px solid var(--border-strong); border-radius:10px; background:var(--card); color:var(--text); padding:11px 12px; }
+.cancellation-field textarea { resize:vertical; min-height:110px; }
+.cancellation-field small { color:var(--muted); line-height:1.35; }
+.cancellation-summary { display:grid; gap:4px; padding:12px 14px; border-left:4px solid var(--danger); border-radius:8px; background:var(--danger-bg); }
+.cancellation-summary strong { color:var(--danger); }
+.cancellation-summary span { color:var(--text); font-size:.9rem; }
+.cancellation-modal-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
+@media (max-width:600px) { .cancellation-modal-actions { flex-direction:column-reverse; } .cancellation-modal-actions .button { width:100%; } }
