@@ -56,7 +56,7 @@ function formatStatus(status: RequestStatus) {
 
 function statusTone(status: RequestStatus): "green" | "yellow" | "red" {
   if (status === "approved") return "green";
-  if (status === "denied") return "red";
+  if (status === "denied" || status === "cancelled") return "red";
   return "yellow";
 }
 
@@ -183,6 +183,40 @@ export default function DailyAccessRequestDetail({
     setLoading(false);
   }
 
+  async function cancelRequest() {
+    if (!request || request.status !== "approved") return;
+
+    const reason = window.prompt(
+      "Enter the reason this approved request is being cancelled. This message will be relayed to the user:"
+    )?.trim();
+    if (!reason) return;
+    if (!window.confirm("Cancel this approved access request?")) return;
+
+    setUpdatingStatus("cancelled");
+    try {
+      const response = await fetch(
+        `/api/admin/daily-access-requests/${request.id}/status`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "cancelled", adminNotes: reason }),
+        }
+      );
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        alert(result?.error || "Unable to cancel this request.");
+        return;
+      }
+      await loadRequest();
+      if (result?.notificationWarning) alert(result.notificationWarning);
+    } catch (error) {
+      console.error("Unable to cancel request:", error);
+      alert(error instanceof Error ? error.message : "Unable to cancel this request.");
+    } finally {
+      setUpdatingStatus(null);
+    }
+  }
+
   async function updateStatus(status: "approved" | "denied") {
     if (!request) return;
 
@@ -254,6 +288,7 @@ export default function DailyAccessRequestDetail({
   const partySize = request.party_size ?? 0;
   const accessAccount = request.access_accounts;
   const isPending = request.status === "pending";
+  const isApproved = request.status === "approved";
 
   return (
     <div className="request-detail-page">
@@ -351,6 +386,15 @@ export default function DailyAccessRequestDetail({
                 {updatingStatus === "denied" ? "Denying..." : "Deny Request"}
               </button>
             </>
+          ) : isApproved ? (
+            <button
+              className="button danger"
+              type="button"
+              onClick={() => void cancelRequest()}
+              disabled={updatingStatus !== null}
+            >
+              {updatingStatus === "cancelled" ? "Cancelling..." : "Cancel Request"}
+            </button>
           ) : (
             <p className="request-detail-status-note">
               This request is already{" "}
