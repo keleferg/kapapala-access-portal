@@ -45,6 +45,17 @@ export async function POST(request: Request) {
       );
     }
 
+    if (reason.toLowerCase() === String(gate.name).trim().toLowerCase()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "The cancellation reason cannot be only the gate name. Enter the actual reason for the cancellation.",
+        },
+        { status: 400 }
+      );
+    }
+
     const { data: targets, error: targetError } = await (supabase as any)
       .from("daily_access_requests")
       .select("id, access_account_id, request_date")
