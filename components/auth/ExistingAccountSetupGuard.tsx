@@ -11,6 +11,7 @@ const EXCLUDED_PATHS = [
   "/login",
   "/logout",
   "/complete-account-setup",
+  "/set-password",
   "/admin",
   "/api",
 ];
