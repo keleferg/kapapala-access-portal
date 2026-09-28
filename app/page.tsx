@@ -1,9 +1,11 @@
 import LoginForm from "../components/auth/LoginForm";
 import Link from "next/link";
+import RecoveryLinkRedirect from "../components/auth/RecoveryLinkRedirect";
 
 export default function HomePage() {
   return (
     <main className="public-landing">
+      <RecoveryLinkRedirect />
       <section className="public-login-card">
         <div className="brand-mark" style={{ marginBottom: 16 }}>
           <img
