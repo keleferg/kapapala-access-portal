@@ -72,18 +72,34 @@ async function generateUniqueAccessId(supabase: any) {
 }
 
 async function findExistingAuthUserIdByEmail(supabase: any, email: string) {
-  const { data, error } = await supabase.auth.admin.listUsers();
+  // The Auth API is paginated. A failed first submission may already have
+  // created a profile, so use its indexed email before scanning Auth pages.
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
 
-  if (error) {
-    throw new Error(error.message || "Unable to look up existing user.");
+  if (profileError) {
+    throw new Error(profileError.message || "Unable to look up existing profile.");
   }
+  if (profile?.id) return profile.id;
 
-  const existingUser = data.users.find(
-    (user: { id: string; email?: string | null }) =>
-      user.email?.toLowerCase() === email.toLowerCase()
-  );
-
-  return existingUser?.id ?? null;
+  for (let page = 1; ; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage: 1000,
+    });
+    if (error) {
+      throw new Error(error.message || "Unable to look up existing user.");
+    }
+    const user = data.users.find(
+      (candidate: { id: string; email?: string | null }) =>
+        candidate.email?.toLowerCase() === email.toLowerCase()
+    );
+    if (user) return user.id;
+    if (data.users.length < 1000) return null;
+  }
 }
 
 

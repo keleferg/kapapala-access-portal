@@ -148,11 +148,11 @@ export async function proxy(request: NextRequest) {
    */
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, app_role")
+    .select("id, role")
     .eq("id", user.id)
     .maybeSingle();
 
-  const appRole = profile?.app_role?.toLowerCase() ?? "public";
+  const appRole = profile?.role?.toLowerCase() ?? "public";
   const isPrivilegedUser = appRole === "admin" || appRole === "super_user";
 
   if (!isPrivilegedUser && profile?.id) {
