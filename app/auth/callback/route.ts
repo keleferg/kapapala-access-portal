@@ -15,6 +15,15 @@ export async function GET(request: Request) {
   const code = requestUrl.searchParams.get("code");
   const next = getSafeNextPath(requestUrl.searchParams.get("next"));
 
+  if (code && next === "/set-password") {
+    const canonicalOrigin =
+      process.env.NEXT_PUBLIC_PORTAL_BASE_URL ||
+      "https://forestreserveaccess.kapapalaranch.com";
+    const destination = new URL("/set-password", canonicalOrigin);
+    destination.searchParams.set("code", code);
+    return NextResponse.redirect(destination);
+  }
+
   if (!code) {
     /*
      * Supabase's legacy implicit recovery flow places the access and
