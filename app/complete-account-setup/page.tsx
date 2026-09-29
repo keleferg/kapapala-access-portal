@@ -257,7 +257,10 @@ function CompleteAccountSetupContent() {
             }
             return;
           }
-        } else if (normalizedAccount.setup_version >= 2) {
+        } else if (
+          normalizedAccount.setup_version >= 2 &&
+          normalizedAccount.setup_completed_at
+        ) {
           router.replace("/dashboard");
           return;
         }
