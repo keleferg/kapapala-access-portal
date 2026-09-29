@@ -158,11 +158,14 @@ export async function proxy(request: NextRequest) {
   if (!isPrivilegedUser && profile?.id) {
     const { data: accessAccount } = await supabase
       .from("access_accounts")
-      .select("setup_completed_at")
+      .select("setup_completed_at, setup_version")
       .eq("profile_id", profile.id)
       .maybeSingle();
 
-    if (accessAccount && !accessAccount.setup_completed_at) {
+    if (
+      accessAccount &&
+      (!accessAccount.setup_completed_at || (accessAccount.setup_version ?? 0) < 2)
+    ) {
       const setupUrl = request.nextUrl.clone();
       setupUrl.pathname = "/complete-account-setup";
       setupUrl.search = "";
