@@ -10,6 +10,7 @@ type Gate = {
   name: string;
   status: string;
   road_condition: string | null;
+  public_note: string | null;
   notes: string | null;
 };
 
@@ -311,7 +312,7 @@ export default function DailyAccessRequestWizard() {
 
         const { data: gateData, error: gateError } = await supabase
           .from("gates")
-          .select("id, name, status, road_condition, notes")
+          .select("id, name, status, road_condition, public_note, notes")
           .eq("active", true)
           .order("name", { ascending: true });
 
@@ -685,6 +686,24 @@ export default function DailyAccessRequestWizard() {
                   </button>
                 ))}
               </div>
+
+              {selectedGate?.public_note?.trim() && (
+                <div
+                  role="note"
+                  style={{
+                    marginTop: 12,
+                    padding: "12px 14px",
+                    border: "1px solid var(--border)",
+                    borderRadius: 10,
+                    background: "#fbfaf7",
+                  }}
+                >
+                  <strong>Gate Note</strong>
+                  <p style={{ margin: "6px 0 0" }}>
+                    {selectedGate.public_note.trim()}
+                  </p>
+                </div>
+              )}
             </Card>
 
             <Card title="3. Purpose">
