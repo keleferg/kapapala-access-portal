@@ -88,7 +88,12 @@ export async function GET(request: Request) {
    * URL fragments are not sent to the server and SetPasswordForm removes
    * these values immediately after establishing the browser session.
    */
-  // Always complete password recovery on the canonical production host.\n  // Supabase email templates may still enter through the legacy Netlify host.\n  const canonicalOrigin =\n    process.env.NEXT_PUBLIC_PORTAL_BASE_URL ||\n    "https://forestreserveaccess.kapapalaranch.com";\n  const destination = new URL(next, canonicalOrigin);
+  // Always complete password recovery on the canonical production host.
+  // Supabase email templates may still enter through the legacy Netlify host.
+  const canonicalOrigin =
+    process.env.NEXT_PUBLIC_PORTAL_BASE_URL ||
+    "https://forestreserveaccess.kapapalaranch.com";
+  const destination = new URL(next, canonicalOrigin);
 
   destination.hash = new URLSearchParams({
     access_token: data.session.access_token,
