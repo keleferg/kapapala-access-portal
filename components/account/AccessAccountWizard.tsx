@@ -256,11 +256,12 @@ export default function AccessAccountWizard() {
 
     setIsSubmitting(true);
 
+    let idDocumentPath: string | null = null;
+
     try {
       const supabase = getSupabaseClient();
 
       const applicationId = crypto.randomUUID();
-      let idDocumentPath: string | null = null;
       const safeFileName = idFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       idDocumentPath = `pending/${applicationId}-${safeFileName}`;
 
