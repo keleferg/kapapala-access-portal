@@ -60,6 +60,26 @@ export default function SetPasswordForm() {
           );
         }
 
+        const tokenHash = fragment.get("token_hash");
+        const recoveryType = fragment.get("type");
+
+        if (tokenHash && recoveryType === "recovery") {
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: "recovery",
+          });
+
+          if (verifyError) {
+            throw verifyError;
+          }
+
+          window.history.replaceState(
+            {},
+            document.title,
+            `${window.location.pathname}${window.location.search}`
+          );
+        }
+
         const accessToken = fragment.get("access_token");
         const refreshToken = fragment.get("refresh_token");
 
