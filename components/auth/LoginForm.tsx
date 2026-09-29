@@ -4,6 +4,8 @@ import { useState } from "react";
 import Card from "../ui/Card";
 import { getSupabaseClient } from "../../lib/supabaseClient";
 
+const PORTAL_BASE_URL = "https://forestreserveaccess.kapapalaranch.com";
+
 type UserRole =
   | "user"
   | "admin"
@@ -94,7 +96,7 @@ export default function LoginForm() {
       const { error } = await supabase.auth.resetPasswordForEmail(
         trimmedEmail,
         {
-          redirectTo: `${window.location.origin}/auth/callback?next=/set-password`,
+          redirectTo: `${PORTAL_BASE_URL}/auth/callback?next=/set-password`,
         }
       );
 
