@@ -30,6 +30,8 @@ type AccessAccount = {
   default_gate: string | null;
   emergency_contact_phone: string | null;
   organization: string | null;
+  setup_completed_at: string | null;
+  setup_version: number | null;
   vehicles: Vehicle[];
 };
 
@@ -290,6 +292,8 @@ export default function DailyAccessRequestWizard() {
             default_gate,
             emergency_contact_phone,
             organization,
+            setup_completed_at,
+            setup_version,
             vehicles (
               id,
               label,
@@ -364,6 +368,10 @@ export default function DailyAccessRequestWizard() {
 
     if (account.status !== "active") {
       return "Your access account must be active before requesting access.";
+    }
+
+    if (!account.setup_completed_at || (account.setup_version ?? 0) < 2) {
+      return "Complete your account setup before requesting access.";
     }
 
     if (!gateId) {
