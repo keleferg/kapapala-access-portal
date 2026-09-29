@@ -260,8 +260,9 @@ export default function AccessAccountWizard() {
       const supabase = getSupabaseClient();
 
       const applicationId = crypto.randomUUID();
+      let idDocumentPath: string | null = null;
       const safeFileName = idFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const idDocumentPath = `pending/${applicationId}-${safeFileName}`;
+      idDocumentPath = `pending/${applicationId}-${safeFileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("access-account-ids")
@@ -351,6 +352,22 @@ export default function AccessAccountWizard() {
       setIdFile(null);
       setStep(5);
     } catch (error) {
+      // If the application fails after the ID upload, remove the orphaned
+      // pending file so the user can retry cleanly with the same document.
+      try {
+        const pendingPath =
+          typeof idDocumentPath === "string" ? idDocumentPath : null;
+
+        if (pendingPath) {
+          const supabase = getSupabaseClient();
+          await supabase.storage
+            .from("access-account-ids")
+            .remove([pendingPath]);
+        }
+      } catch (cleanupError) {
+        console.warn("Unable to clean up failed ID upload:", cleanupError);
+      }
+
       setSubmitError(
         error instanceof Error ? error.message : "An unknown error occurred."
       );
