@@ -23,7 +23,7 @@ type ProfileRow = {
 };
 
 const PORTAL_BASE_URL =
-  "https://kapapalaforestreserveaccesssystem.netlify.app";
+  "https://forestreserveaccess.kapapalaranch.com";
 
 const IOS_APP_URL =
   "https://apps.apple.com/us/app/kapapala-forest-reserve-access/id6786978124";
