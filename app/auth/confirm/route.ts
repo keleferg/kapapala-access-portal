@@ -70,16 +70,22 @@ export async function GET(request: Request) {
   });
 
   if (error || !data.session) {
+    const { data: currentAuth } = await supabase.auth.getSession();
+
+    if (currentAuth.session) {
+      const canonicalOrigin =
+        process.env.NEXT_PUBLIC_PORTAL_BASE_URL ||
+        "https://forestreserveaccess.kapapalaranch.com";
+      return NextResponse.redirect(new URL(next, canonicalOrigin));
+    }
+
     console.error(
-      "Unable to verify Supabase recovery token:",
-      error?.message ?? "Recovery session was not returned."
+      "Unable to verify recovery request:",
+      error?.message ?? "No authenticated recovery state was returned."
     );
 
     return NextResponse.redirect(
-      new URL(
-        "/?error=expired-or-invalid-link",
-        requestUrl.origin
-      )
+      new URL("/?error=expired-or-invalid-link", requestUrl.origin)
     );
   }
 
