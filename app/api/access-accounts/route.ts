@@ -32,6 +32,18 @@ type AccessAccountPayload = {
   bypassPhotoId?: boolean;
   bypassNotifications?: boolean;
   status?: "pending" | "active";
+  rulesAccepted?: {
+    dailyRequest?: boolean;
+    signInOut?: boolean;
+    sameGate?: boolean;
+    markedRoads?: boolean;
+    dogsSecured?: boolean;
+    interiorGates?: boolean;
+    parking?: boolean;
+    noHunting?: boolean;
+    closingTime?: boolean;
+    misuse?: boolean;
+  };
   vehicles?: {
     label?: string;
     licensePlate: string;
@@ -150,6 +162,51 @@ export async function POST(request: Request) {
         },
         { status: 400 }
       );
+    }
+
+    if (!body.adminCreated) {
+      if (
+        !body.phone?.trim() ||
+        !body.deviceType ||
+        !body.organization?.trim() ||
+        !body.defaultGate ||
+        !body.emergencyContactName?.trim() ||
+        !body.emergencyContactPhone?.trim()
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "Phone, gate-code device, organization, preferred gate, and emergency contact are required.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const rules = body.rulesAccepted;
+      const allRulesAccepted = Boolean(
+        rules?.dailyRequest &&
+        rules?.signInOut &&
+        rules?.sameGate &&
+        rules?.markedRoads &&
+        rules?.dogsSecured &&
+        rules?.interiorGates &&
+        rules?.parking &&
+        rules?.noHunting &&
+        rules?.closingTime &&
+        rules?.misuse
+      );
+
+      if (!allRulesAccepted) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "All ten Kapāpala access rules must be acknowledged before submitting an account application.",
+          },
+          { status: 400 }
+        );
+      }
     }
 
     const mailingCountry =
@@ -419,6 +476,10 @@ export async function POST(request: Request) {
             body.emergencyContactName?.trim() || null,
           emergency_contact_phone:
             body.emergencyContactPhone?.trim() || null,
+          setup_version: body.adminCreated ? undefined : 2,
+          setup_completed_at: body.adminCreated
+            ? undefined
+            : new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq("id", account.id)
