@@ -19,6 +19,7 @@ const EXCLUDED_PATHS = [
 type SetupAccountRow = {
   id: string;
   setup_version: number | null;
+  setup_completed_at: string | null;
 };
 
 function isExcludedPath(pathname: string): boolean {
@@ -53,7 +54,7 @@ export default function ExistingAccountSetupGuard() {
 
         const { data, error: accountError } = await supabase
           .from("access_accounts")
-          .select("id, setup_version")
+          .select("id, setup_version, setup_completed_at")
           .eq("profile_id", user.id)
           .limit(1)
           .maybeSingle();
@@ -77,7 +78,7 @@ export default function ExistingAccountSetupGuard() {
             ? account.setup_version
             : 0;
 
-        if (setupVersion < CURRENT_SETUP_VERSION) {
+        if (!account.setup_completed_at || setupVersion < CURRENT_SETUP_VERSION) {
           router.replace("/complete-account-setup");
         }
       } catch (error) {
