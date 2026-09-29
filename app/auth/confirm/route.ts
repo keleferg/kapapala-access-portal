@@ -1,7 +1,4 @@
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import type { EmailOtpType } from "@supabase/supabase-js";
 
 function getSafeNextPath(value: string | null): string {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
@@ -13,97 +10,23 @@ function getSafeNextPath(value: string | null): string {
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
-
   const tokenHash = requestUrl.searchParams.get("token_hash");
-  const type = requestUrl.searchParams.get("type") as EmailOtpType | null;
+  const type = requestUrl.searchParams.get("type");
   const next = getSafeNextPath(requestUrl.searchParams.get("next"));
 
-  if (!tokenHash || !type) {
+  if (!tokenHash || type !== "recovery") {
     return NextResponse.redirect(
       new URL("/?error=invalid-reset-link", requestUrl.origin)
     );
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error(
-      "Supabase environment variables are missing in auth confirmation."
-    );
-
-    return NextResponse.redirect(
-      new URL("/?error=auth-configuration", requestUrl.origin)
-    );
-  }
-
-  const cookieStore = await cookies();
-
-  const supabase = createServerClient(
-    supabaseUrl,
-    supabaseAnonKey,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-
-        setAll(
-          cookiesToSet: Array<{
-            name: string;
-            value: string;
-            options: Parameters<typeof cookieStore.set>[2];
-          }>
-        ) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options);
-          });
-        },
-      },
-    }
-  );
-
-  const { data, error } = await supabase.auth.verifyOtp({
-    token_hash: tokenHash,
-    type,
-  });
-
-  if (error || !data.session) {
-    const { data: currentAuth } = await supabase.auth.getSession();
-
-    if (currentAuth.session) {
-      const canonicalOrigin =
-        process.env.NEXT_PUBLIC_PORTAL_BASE_URL ||
-        "https://forestreserveaccess.kapapalaranch.com";
-      return NextResponse.redirect(new URL(next, canonicalOrigin));
-    }
-
-    console.error(
-      "Unable to verify recovery request:",
-      error?.message ?? "No authenticated recovery state was returned."
-    );
-
-    return NextResponse.redirect(
-      new URL("/?error=expired-or-invalid-link", requestUrl.origin)
-    );
-  }
-
-  /*
-   * Explicitly hand the verified recovery session to the browser.
-   * URL fragments are not sent to the server and SetPasswordForm removes
-   * these values immediately after establishing the browser session.
-   */
-  // Always complete password recovery on the canonical production host.
-  // Supabase email templates may still enter through the legacy Netlify host.
   const canonicalOrigin =
     process.env.NEXT_PUBLIC_PORTAL_BASE_URL ||
     "https://forestreserveaccess.kapapalaranch.com";
   const destination = new URL(next, canonicalOrigin);
 
   destination.hash = new URLSearchParams({
-    access_token: data.session.access_token,
-    refresh_token: data.session.refresh_token,
+    token_hash: tokenHash,
     type: "recovery",
   }).toString();
 
