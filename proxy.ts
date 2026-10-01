@@ -142,40 +142,11 @@ export async function proxy(request: NextRequest) {
   }
 
   /*
-   * Require normal public users to finish the existing-account setup
-   * before they can enter the authenticated portal. Admin and super-user
-   * accounts retain access so administrative workflows cannot be locked out.
+   * Account-setup enforcement lives in ExistingAccountSetupGuard on protected
+   * public pages. Keeping profile/access-account lookups out of the proxy avoids
+   * repeating two database queries for every Next.js request while auth.getUser()
+   * continues to protect authenticated routes server-side.
    */
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, role")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const appRole = profile?.role?.toLowerCase() ?? "public";
-  const isPrivilegedUser = appRole === "admin" || appRole === "super_user";
-
-  if (!isPrivilegedUser && profile?.id) {
-    const { data: accessAccount } = await supabase
-      .from("access_accounts")
-      .select("setup_completed_at, setup_version")
-      .eq("profile_id", profile.id)
-      .maybeSingle();
-
-    if (
-      accessAccount &&
-      (!accessAccount.setup_completed_at || (accessAccount.setup_version ?? 0) < 2)
-    ) {
-      const setupUrl = request.nextUrl.clone();
-      setupUrl.pathname = "/complete-account-setup";
-      setupUrl.search = "";
-
-      const redirectResponse = NextResponse.redirect(setupUrl);
-
-      return copyCookies(response, redirectResponse);
-    }
-  }
-
   if (
     isAndroidPhone(request) &&
     !pathname.startsWith("/mobile") &&
