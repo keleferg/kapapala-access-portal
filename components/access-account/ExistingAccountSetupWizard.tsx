@@ -189,6 +189,7 @@ export default function ExistingAccountSetupWizard({
         form.lastName.trim() &&
         form.email.trim() &&
         form.phone.trim() &&
+        form.mailingAddress.trim() &&
         form.organization.trim() &&
         form.deviceType &&
         form.defaultGate &&
@@ -289,30 +290,38 @@ export default function ExistingAccountSetupWizard({
           );
         }
 
-        const uploadForm = new FormData();
-        uploadForm.append("file", idFile);
-        uploadForm.append("documentType", idType);
-
-        const uploadResponse = await fetch(
-          "/api/my-access-account/id-document",
-          {
+        if (!["image/jpeg", "image/png"].includes(idFile.type) ||
+            idFile.size <= 0 || idFile.size > 5 * 1024 * 1024) {
+          throw new Error("Select a JPG or PNG file no larger than 5 MB.");
+        }
+        const metadata = {
+          fileName: idFile.name, mimeType: idFile.type,
+          fileSize: idFile.size, documentType: idType,
+        };
+        async function uploadRequest(body: object) {
+          const response = await fetch("/api/my-access-account/id-document", {
             method: "POST",
             headers: {
-              Authorization:
-                `Bearer ${session.access_token}`,
+              Authorization: `Bearer ${session!.access_token}`,
+              "Content-Type": "application/json",
             },
-            body: uploadForm,
+            body: JSON.stringify(body),
+          });
+          const result = await response.json().catch(() => null);
+          if (!response.ok || !result?.success) {
+            throw new Error(result?.error ||
+              "The ID upload could not be completed. Your setup information is saved; please try again.");
           }
-        );
-
-        const uploadResult = await uploadResponse.json();
-
-        if (!uploadResponse.ok || !uploadResult.success) {
-          throw new Error(
-            uploadResult.error ||
-            "Unable to upload identification."
-          );
+          return result;
         }
+        const prepared = await uploadRequest({ ...metadata, action: "prepare" });
+        const { error: uploadError } = await supabase.storage
+          .from("access-account-ids")
+          .uploadToSignedUrl(prepared.storagePath, prepared.token, idFile, {
+            contentType: idFile.type,
+          });
+        if (uploadError) throw new Error(uploadError.message);
+        await uploadRequest({ ...metadata, action: "complete", storagePath: prepared.storagePath });
 
         setReplacementIdUploaded(true);
       }
@@ -547,14 +556,15 @@ export default function ExistingAccountSetupWizard({
             </div>
 
             <label>
-              Mailing Address
+              Mailing Address (required)
               <textarea
                 rows={3}
                 value={form.mailingAddress}
                 onChange={(event) =>
                   updateField("mailingAddress", event.target.value)
                 }
-                placeholder="Mailing address"
+                placeholder="Mailing address (including country for international addresses)"
+                required
               />
             </label>
 
@@ -639,7 +649,7 @@ export default function ExistingAccountSetupWizard({
                   Government ID Upload
                   <input
                     type="file"
-                    accept="image/jpeg,image/png,application/pdf"
+                    accept="image/jpeg,image/png"
                     onChange={(event) => {
                       setIdFile(
                         event.target.files?.[0] ?? null
@@ -653,7 +663,7 @@ export default function ExistingAccountSetupWizard({
                 <p className="muted-text">
                   {idFile
                     ? `Selected file: ${idFile.name}`
-                    : "Upload a clear JPG, PNG, or PDF copy of your current government ID."}
+                    : "Upload a clear JPG or PNG copy of your current government ID."}
                 </p>
               </div>
             )}

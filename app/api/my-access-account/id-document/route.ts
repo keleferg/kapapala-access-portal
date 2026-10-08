@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -15,7 +16,6 @@ function getSupabaseAdmin() {
 const allowedMimeTypes = new Set([
   "image/jpeg",
   "image/png",
-  "application/pdf",
 ]);
 
 const allowedDocumentTypes = new Set([
@@ -57,45 +57,21 @@ export async function POST(request: Request) {
       );
     }
 
-    const formData = await request.formData();
-    const file = formData.get("file");
-    const requestedDocumentType = formData.get("documentType");
-
-    if (!(file instanceof File)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Please select an identification document.",
-        },
-        { status: 400 }
-      );
+    const isDirectUpload = request.headers.get("content-type")?.includes("application/json");
+    const payload = isDirectUpload ? await request.json() : null;
+    const formData = isDirectUpload ? null : await request.formData();
+    const file = formData?.get("file");
+    const fileName = isDirectUpload ? payload.fileName : file instanceof File ? file.name : null;
+    let mimeType = isDirectUpload ? payload.mimeType : file instanceof File ? file.type : null;
+    let fileSize = isDirectUpload ? payload.fileSize : file instanceof File ? file.size : null;
+    const requestedDocumentType = isDirectUpload ? payload.documentType : formData?.get("documentType");
+    if (typeof fileName !== "string" || !fileName || fileName.length > 255 ||
+        !allowedMimeTypes.has(mimeType) || !Number.isInteger(fileSize) ||
+        fileSize <= 0 || fileSize > 5 * 1024 * 1024 ||
+        !allowedDocumentTypes.has(requestedDocumentType)) {
+      return NextResponse.json({ success: false, error: "Select an ID type and a JPG or PNG file no larger than 5 MB." }, { status: 400 });
     }
-
-    if (!allowedMimeTypes.has(file.type)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Only JPG, PNG, and PDF files are allowed.",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (file.size > 15 * 1024 * 1024) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "The identification file must be 15 MB or smaller.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const documentType =
-      typeof requestedDocumentType === "string" &&
-      allowedDocumentTypes.has(requestedDocumentType)
-        ? requestedDocumentType
-        : "Other Government ID";
+    const documentType = requestedDocumentType as string;
 
     const { data: account, error: accountError } = await supabase
       .from("access_accounts")
@@ -115,27 +91,33 @@ export async function POST(request: Request) {
       );
     }
 
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const storagePath =
-      `${account.id}/replacement-id-${Date.now()}-${safeName}`;
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-
-    const { error: uploadError } = await supabase.storage
-      .from("access-account-ids")
-      .upload(storagePath, buffer, {
-        contentType: file.type,
-        upsert: false,
+    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+    let storagePath = `${account.id}/replacement-id-${randomUUID()}-${safeName}`;
+    const bucket = supabase.storage.from("access-account-ids");
+    if (isDirectUpload) {
+      if (payload.action === "prepare") {
+        const { data, error } = await bucket.createSignedUploadUrl(storagePath);
+        if (error) throw new Error(error.message);
+        return NextResponse.json({ success: true, storagePath, token: data.token });
+      }
+      if (payload.action !== "complete" || typeof payload.storagePath !== "string" ||
+          !payload.storagePath.startsWith(`${account.id}/replacement-id-`) ||
+          payload.storagePath.includes("..") || payload.storagePath.split("/").length !== 2) {
+        return NextResponse.json({ success: false, error: "Invalid upload path." }, { status: 400 });
+      }
+      storagePath = payload.storagePath;
+      const { data: stored, error } = await bucket.info(storagePath);
+      if (error || !stored) throw new Error("The ID upload is incomplete. Please try again.");
+      mimeType = stored.contentType;
+      fileSize = stored.size;
+      if (!allowedMimeTypes.has(mimeType ?? "") || !fileSize || fileSize > 5 * 1024 * 1024) {
+        return NextResponse.json({ success: false, error: "The uploaded ID must be a JPG or PNG no larger than 5 MB." }, { status: 400 });
+      }
+    } else {
+      const { error } = await bucket.upload(storagePath, Buffer.from(await (file as File).arrayBuffer()), {
+        contentType: mimeType, upsert: false,
       });
-
-    if (uploadError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: uploadError.message,
-        },
-        { status: 500 }
-      );
+      if (error) throw new Error(error.message);
     }
 
     const { data: document, error: documentError } = await supabase
@@ -145,9 +127,9 @@ export async function POST(request: Request) {
         document_type: documentType,
         storage_bucket: "access-account-ids",
         storage_path: storagePath,
-        original_filename: file.name,
-        mime_type: file.type,
-        file_size: file.size,
+        original_filename: fileName,
+        mime_type: mimeType,
+        file_size: fileSize,
       })
       .select("id, storage_path")
       .single();
