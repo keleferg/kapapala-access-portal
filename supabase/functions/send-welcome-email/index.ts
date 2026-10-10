@@ -177,7 +177,7 @@ serve(async (req: Request) => {
     const expirationDate = formatExpirationDate(account.expires_at);
 
     const subject =
-      "Your Kapāpala Forest Reserve Access Account Has Been Approved";
+      "Your Kapāpala Forest Reserve Access Account Is Now Active";
 
     const html = buildApprovalEmailHtml({
       firstName,
@@ -198,7 +198,9 @@ serve(async (req: Request) => {
       headers: {
         Authorization: `Bearer ${resendApiKey}`,
         "Content-Type": "application/json",
+        "Idempotency-Key": `account-approved/${accessAccountId}`,
       },
+      signal: AbortSignal.timeout(15000),
       body: JSON.stringify({
         from: fromEmail,
         to: recipientEmail,
@@ -350,7 +352,7 @@ function buildApprovalEmailHtml({
         color:transparent;
       "
     >
-      Your Kapāpala Forest Reserve Access Account has been approved.
+      Your Kapāpala Forest Reserve Access Account is now active.
     </div>
 
     <table
@@ -426,7 +428,7 @@ function buildApprovalEmailHtml({
                     color:#ffffff;
                   "
                 >
-                  Your Account Has Been Approved
+                  Your Account Is Now Active
                 </h1>
               </td>
             </tr>
@@ -796,7 +798,7 @@ function buildApprovalEmailText({
 }): string {
   return `Aloha ${firstName},
 
-YOUR KAPĀPALA FOREST RESERVE ACCESS ACCOUNT HAS BEEN APPROVED
+YOUR KAPĀPALA FOREST RESERVE ACCESS ACCOUNT IS NOW ACTIVE
 
 Your account has been reviewed, approved, and activated. You may now sign in and submit access requests, subject to current access rules, gate conditions, and approval requirements.
 
